@@ -5,8 +5,8 @@ export const settings = sdk.Action.withInput(
   'settings',
 
   async ({ effects }) => ({
-    name: 'Settings',
-    description: 'Configure Flowee the Hub node settings.',
+    name: 'Node Settings',
+    description: 'Configure Flowee node settings, network behavior, and RPC tuning.',
     warning: null,
     allowedStatuses: 'any',
     group: null,

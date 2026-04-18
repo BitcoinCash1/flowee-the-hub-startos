@@ -9,6 +9,7 @@ It provides the full suite of P2P, RPC, REST, and indexer capabilities for the B
 
 - **Fast Block Propagation**: Flowee validates at SPV level (follows canonical chain by most PoW), enabling faster block relay than fully-validating nodes
 - **Full JSON-RPC Interface**: Compatible RPC API for wallets, indexers, and mining pools
+- **BIP37 Bloom Support**: Supports bloom-filtered peer behavior used by lightweight/SPV client workflows
 - **Built-in Indexer**: Flowee Indexer provides fast lookup of transaction data, address history, and UTXO sets
 - **Scaled to 250MB Blocks**: Tested and verified for massive block sizes
 - **Low Resource Usage**: Efficient C++ implementation with minimal overhead
