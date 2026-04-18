@@ -29,7 +29,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /build/thehub/build/hub/hub /usr/local/bin/
-COPY --from=build /build/thehub/build/hub-cli/hub-cli /usr/local/bin/
+COPY --from=build /build/thehub/build/hub/hub-cli /usr/local/bin/
 COPY --from=build /build/thehub/build/indexer/indexer /usr/local/bin/
 
 RUN mkdir -p /data
