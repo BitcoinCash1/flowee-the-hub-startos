@@ -15,8 +15,7 @@ RUN git clone --depth 1 --branch ${FLOWEE_VERSION} \
 
 WORKDIR /build/thehub/build
 RUN cmake -Dbuild_apps=ON CMakeLists.txt .. && \
-    make -j"$(nproc)" && \
-    make install
+    make -j"$(nproc)" hub hub-cli indexer
 
 # ── Runtime ─────────────────────────────────────────────────────────
 FROM debian:bookworm-slim
@@ -29,9 +28,9 @@ RUN apt-get update && \
     libboost-program-options1.74.0 libssl3 curl jq && \
     rm -rf /var/lib/apt/lists/*
 
-COPY --from=build /usr/local/bin/hub /usr/local/bin/
-COPY --from=build /usr/local/bin/hub-cli /usr/local/bin/
-COPY --from=build /usr/local/bin/indexer /usr/local/bin/
+COPY --from=build /build/thehub/build/hub/hub /usr/local/bin/
+COPY --from=build /build/thehub/build/hub-cli/hub-cli /usr/local/bin/
+COPY --from=build /build/thehub/build/indexer/indexer /usr/local/bin/
 
 RUN mkdir -p /data
 VOLUME /data
