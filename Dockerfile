@@ -1,0 +1,40 @@
+# ── Build Flowee the Hub from source ────────────────────────────────
+FROM ubuntu:24.04 AS build
+
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    build-essential cmake git ca-certificates \
+    libssl-dev libboost-all-dev libevent-dev libminiupnpc-dev \
+    pkg-config qt6-tools-dev-tools qt6-tools-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+ARG FLOWEE_VERSION=2026.02.0
+WORKDIR /build
+RUN git clone --depth 1 --branch ${FLOWEE_VERSION} \
+    https://codeberg.org/Flowee/thehub.git
+
+WORKDIR /build/thehub/build
+RUN cmake -Dbuild_apps=ON CMakeLists.txt .. && \
+    make -j"$(nproc)" && \
+    make install
+
+# ── Runtime ─────────────────────────────────────────────────────────
+FROM debian:bookworm-slim
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    ca-certificates libevent-2.1-7 libminiupnpc17 \
+    libboost-filesystem1.74.0 libboost-system1.74.0 \
+    libboost-thread1.74.0 libboost-chrono1.74.0 \
+    libboost-program-options1.74.0 libssl3 curl jq && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /usr/local/bin/hub /usr/local/bin/
+COPY --from=build /usr/local/bin/hub-cli /usr/local/bin/
+COPY --from=build /usr/local/bin/indexer /usr/local/bin/
+
+RUN mkdir -p /data
+VOLUME /data
+EXPOSE 8332 8333 1235
+
+ENTRYPOINT ["hub"]
