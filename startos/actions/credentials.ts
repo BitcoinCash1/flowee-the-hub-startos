@@ -26,7 +26,7 @@ export const viewCredentials = sdk.Action.withInput(
     })
   },
 
-  async ({ effects }) => ({ name: 'Default' }),
+  async ({ effects }) => ({ name: 'Default' as const }),
 
   async ({ effects, input }) => {
     const store = await storeJson.read().once()

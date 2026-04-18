@@ -223,6 +223,7 @@ function formToFile(
     rest: rest ?? false,
     maxconnections: maxconnections ?? undefined,
     addnode: addnode && (addnode as string[]).length > 0 ? (addnode as string[]).filter(Boolean) : undefined,
+    onlynet: raw?.onlynet?.filter((v): v is string => !!v),
     maxmempool: maxmempool ?? undefined,
     minrelaytxfee: minrelaytxfee ?? undefined,
     mempoolexpiry: mempoolexpiry ?? undefined,
