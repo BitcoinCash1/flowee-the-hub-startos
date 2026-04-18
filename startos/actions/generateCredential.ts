@@ -22,53 +22,76 @@ function generatePassword(length = 32): string {
 }
 
 const spec = InputSpec.of({
+  name: Value.text({
+    name: 'Credential Name',
+    description:
+      'A friendly label for this credential (e.g. "Fulcrum", "Explorer", "Wallet").',
+    required: true,
+    default: null,
+    masked: false,
+    placeholder: 'My Service',
+  }),
   username: Value.text({
     name: 'Username',
-    description: 'RPC username used by services connecting to Flowee.',
+    description: 'Alphanumeric username for RPC authentication.',
     required: true,
-    default: 'flowee',
+    default: null,
     masked: false,
-    placeholder: 'flowee',
+    placeholder: 'myservice',
   }),
 })
 
-export const generateCredential = sdk.Action.withInput(
+export const generateRpcCredential = sdk.Action.withInput(
   'generate-rpc-credential',
   async () => ({
     name: 'Generate RPC Credential',
     description:
-      'Generate a new default RPC username/password pair and apply it to flowee.conf.',
-    warning:
-      'Any dependent service using old credentials must be reconfigured after this change.',
+      'Create a new named RPC credential. The generated password is stored and can be viewed later in "View RPC Credentials".',
+    warning: null,
     allowedStatuses: 'any',
     group: 'Credentials',
     visibility: 'enabled',
   }),
   spec,
   async ({ effects }) => {
-    const store = await storeJson.read().once()
-    return { username: store?.rpcUser ?? 'flowee' }
+    return {
+      name: undefined as string | undefined,
+      username: undefined as string | undefined,
+    }
   },
   async ({ effects, input }) => {
-    const username = String(input.username || 'flowee').trim() || 'flowee'
+    const name = String(input.name || '').trim()
+    const username = String(input.username || '').trim()
     const password = generatePassword(32)
 
+    const store = await storeJson.read().once()
+    const creds = [...(store?.rpcCredentials ?? [])]
+
+    const filtered = creds.filter((c) => c.name !== name)
+    filtered.push({ name, username, password })
+
+    const active = filtered[0] ?? { name, username, password }
+
     await storeJson.merge(effects, {
-      rpcUser: username,
-      rpcPassword: password,
+      rpcCredentials: filtered,
+      rpcUser: active.username,
+      rpcPassword: active.password,
     })
 
     await floweeConfFile.merge(effects, {
       raw: {
-        rpcuser: username,
-        rpcpassword: password,
+        rpcuser: active.username,
+        rpcpassword: active.password,
       },
     })
 
     return {
       version: '1' as const,
-      title: 'RPC Credential Updated',
+      title: `RPC Credential: ${name}`,
       message: [
+        'Credential saved. You can view it anytime in **View RPC Credentials**.',
+        '',
+        `**Name:** ${name}`,
         `**Username:** ${username}`,
         `**Password:** ${password}`,
         `**Port:** ${rpcPort}`,

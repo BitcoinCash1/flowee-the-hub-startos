@@ -3,6 +3,15 @@ import { sdk } from '../sdk'
 
 export const shape = z
   .object({
+    rpcCredentials: z
+      .array(
+        z.object({
+          name: z.string().min(1),
+          username: z.string().min(1),
+          password: z.string(),
+        }),
+      )
+      .catch([]),
     rpcUser: z.string().catch('flowee'),
     rpcPassword: z.string().catch(''),
     initialized: z.boolean().catch(false),

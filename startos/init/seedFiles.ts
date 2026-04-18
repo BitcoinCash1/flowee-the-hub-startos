@@ -18,6 +18,13 @@ export const seedFiles = sdk.setupOnInit(async (effects, kind) => {
   const rpcPassword = generatePassword(32)
 
   await storeJson.merge(effects, {
+    rpcCredentials: [
+      {
+        name: 'Default',
+        username: 'flowee',
+        password: rpcPassword,
+      },
+    ],
     rpcUser: 'flowee',
     rpcPassword,
     initialized: true,

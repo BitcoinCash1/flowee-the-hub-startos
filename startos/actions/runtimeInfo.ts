@@ -15,8 +15,9 @@ export const runtimeInfo = sdk.Action.withoutInput(
   }),
   async ({ effects }) => {
     const store = await storeJson.read().once()
-    const rpcUser = store?.rpcUser ?? 'flowee'
-    const rpcPassword = store?.rpcPassword ?? ''
+    const activeCred = store?.rpcCredentials?.[0]
+    const rpcUser = store?.rpcUser ?? activeCred?.username ?? 'flowee'
+    const rpcPassword = store?.rpcPassword ?? activeCred?.password ?? ''
 
     return sdk.SubContainer.withTemp(
       effects,

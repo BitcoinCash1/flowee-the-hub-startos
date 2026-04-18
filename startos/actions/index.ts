@@ -1,8 +1,11 @@
 import { sdk } from '../sdk'
 import { autoconfig } from './config/autoconfig'
-import { settings } from './config/settings'
-import { viewCredentials } from './credentials'
-import { generateCredential } from './generateCredential'
+import { nodeSettings } from './config/nodeSettings'
+import { rpcPeersSettings } from './config/rpcPeersSettings'
+import { mempoolSettings } from './config/mempoolSettings'
+import { viewRpcCredentials } from './credentials'
+import { generateRpcCredential } from './generateCredential'
+import { deleteRpcCredentials } from './deleteRpcCredentials'
 import { runtimeInfo } from './runtimeInfo'
 import { reindex } from './reindex'
 
@@ -12,9 +15,12 @@ export const actions = sdk.Actions.of()
   // ── Info ────────────────────────────────────────────────────────────────────
   .addAction(runtimeInfo)
   // ── Configuration ───────────────────────────────────────────────────────────
-  .addAction(settings)
+  .addAction(nodeSettings)
+  .addAction(rpcPeersSettings)
+  .addAction(mempoolSettings)
   // ── Credentials ─────────────────────────────────────────────────────────────
-  .addAction(viewCredentials)
-  .addAction(generateCredential)
+  .addAction(viewRpcCredentials)
+  .addAction(generateRpcCredential)
+  .addAction(deleteRpcCredentials)
   // ── Maintenance ─────────────────────────────────────────────────────────────
   .addAction(reindex)
