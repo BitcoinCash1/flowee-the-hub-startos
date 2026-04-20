@@ -37,7 +37,7 @@ export const seedFiles = sdk.setupOnInit(async (effects, kind) => {
       rpcuser: 'flowee',
       rpcpassword: rpcPassword,
     },
-    rest: false,
+    rest: true,
     maxconnections: 125,
     rpcthreads: 4,
   })

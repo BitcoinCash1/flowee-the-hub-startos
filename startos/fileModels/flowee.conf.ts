@@ -86,7 +86,7 @@ export const fullConfigSpec = InputSpec.of({
   rest: Value.toggle({
     name: 'REST API',
     description: 'Accept public REST requests. Provides HTTP-based access to blockchain data.',
-    default: false,
+    default: true,
   }),
 
   // ── Connection ─────────────────────────────────────────────────────────────
