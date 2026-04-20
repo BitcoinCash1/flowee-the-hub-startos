@@ -18,7 +18,7 @@ export const manifest = setupManifest({
   images: {
     flowee: {
       source: { dockerBuild: {} },
-      arch: ['x86_64'],
+      arch: ['x86_64', 'aarch64', 'riscv64'],
       emulateMissingAs: 'x86_64',
     },
   },
