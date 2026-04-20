@@ -135,6 +135,12 @@ export const fullConfigSpec = InputSpec.of({
     default: ALL_ONLYNETS,
     values: ONLYNET_VALUES,
   }),
+  onionOnly: Value.toggle({
+    name: 'Onion-Only Mode',
+    description:
+      'Force peer connections to Tor only (equivalent to onlynet=onion). Disabled by default so Tor and clearnet can coexist.',
+    default: false,
+  }),
   maxconnections: Value.number({
     name: 'Maximum Connections',
     description: 'Maximum number of peer connections.',
@@ -307,12 +313,14 @@ function fileToForm(
   // When no onlynet is written in conf, all networks are allowed — show all checked
   const onlynetFromConf = onlynet?.filter((v): v is string => !!v) ?? []
   const onlynetForm = onlynetFromConf.length === 0 ? [...ALL_ONLYNETS] : onlynetFromConf as OnlynetKey[]
+  const onionOnly = onlynetFromConf.length > 0 && onlynetFromConf.every((n) => n === 'onion')
 
   return {
     raw: input ?? {},
     rest,
     maxconnections,
     onlynet: onlynetForm,
+    onionOnly,
     addnode: addnode?.filter((v): v is string => !!v) ?? [],
     maxuploadtarget,
     maxreceivebuffer,
@@ -333,7 +341,7 @@ function formToFile(
   input: T.DeepPartial<typeof fullConfigSpec._TYPE>,
 ): z.infer<typeof shape> {
   const {
-    raw, rest, maxconnections, onlynet, addnode,
+    raw, rest, maxconnections, onlynet, onionOnly, addnode,
     maxmempool, minrelaytxfee, mempoolexpiry,
     blocksizeacceptlimit, rpcthreads,
     maxreceivebuffer, maxsendbuffer, maxuploadtarget, externalip,
@@ -342,7 +350,9 @@ function formToFile(
   // If all networks selected (or none specified), don't write onlynet (means allow all)
   const onlynetList = (onlynet as string[] | undefined)?.filter(Boolean) ?? []
   const allSelected = ALL_ONLYNETS.every((n) => onlynetList.includes(n))
-  const writeOnlynet = onlynetList.length > 0 && !allSelected ? onlynetList : undefined
+  const writeOnlynet = onionOnly
+    ? ['onion']
+    : (onlynetList.length > 0 && !allSelected ? onlynetList : undefined)
 
   const externalipList = (externalip as string[] | undefined)?.filter(Boolean) ?? []
 

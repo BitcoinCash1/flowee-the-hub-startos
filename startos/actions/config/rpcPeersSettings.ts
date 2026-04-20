@@ -18,6 +18,7 @@ export const rpcPeersSettings = sdk.Action.withInput(
     torEnabled: true,
     torIsolation: true,
     onlynet: true,
+    onionOnly: true,
     rpcthreads: true,
     maxconnections: true,
     maxuploadtarget: true,
