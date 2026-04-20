@@ -158,4 +158,25 @@ export const main = sdk.setupMain(async ({ effects }: { effects: any }) => {
       },
       requires: ['primary'],
     })
+    .addDaemon('indexer', {
+      subcontainer: nodeSub,
+      exec: {
+        command: ['indexer', `-datadir=${rootDir}`],
+        sigtermTimeout: 30_000,
+      },
+      ready: {
+        display: 'Transaction Indexer',
+        fn: async () => {
+          try {
+            const res = await nodeSub.exec(['pgrep', '-x', 'indexer'])
+            return res.exitCode === 0
+              ? { message: 'Transaction indexer running', result: 'success' }
+              : { message: 'Transaction indexer starting', result: 'starting' }
+          } catch {
+            return { message: 'Transaction indexer starting', result: 'starting' }
+          }
+        },
+      },
+      requires: ['primary'],
+    })
 })

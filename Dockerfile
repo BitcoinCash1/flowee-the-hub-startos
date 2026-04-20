@@ -18,15 +18,17 @@ RUN cmake -Dbuild_apps=ON CMakeLists.txt .. && \
     make -j"$(nproc)" hub hub-cli indexer
 
 # ── Runtime ─────────────────────────────────────────────────────────
-FROM debian:bookworm-slim
+FROM ubuntu:24.04
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    ca-certificates libevent-2.1-7 libminiupnpc17 \
-    libboost-filesystem1.74.0 libboost-system1.74.0 \
-    libboost-thread1.74.0 libboost-chrono1.74.0 \
-    libboost-program-options1.74.0 libssl3 curl jq && \
-    rm -rf /var/lib/apt/lists/*
+    ca-certificates libevent-2.1-7t64 libminiupnpc17 \
+    libboost-filesystem1.83.0 libboost-thread1.83.0 \
+    libboost-chrono1.83.0 libboost-program-options1.83.0 \
+    libboost-iostreams1.83.0 \
+    libssl3t64 curl jq \
+    libqt6core6t64 libqt6network6t64 libqt6sql6t64 libqt6dbus6t64 \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /build/thehub/build/hub/hub /usr/local/bin/
 COPY --from=build /build/thehub/build/hub/hub-cli /usr/local/bin/

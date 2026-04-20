@@ -52,8 +52,10 @@ export const shape = z
     blocksizeacceptlimit: iniNumber,
     // Block creation
     blockmaxsize: iniNumber,
-    // API
+    // Flowee Binary API (apilisten — binary protocol, much faster than JSON-RPC)
     apilisten: iniString,
+    api_max_addresses: iniNumber,
+    api_connection_per_ip: iniNumber,
     // General
     maxorphantx: iniNumber,
     checkblocks: iniNumber,
