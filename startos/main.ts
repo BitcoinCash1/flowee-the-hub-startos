@@ -72,6 +72,33 @@ export const main = sdk.setupMain(async ({ effects }: { effects: any }) => {
     ])
   }
 
+  function getSyncHealth(info: GetBlockchainInfo) {
+    const pct = (info.verificationprogress * 100).toFixed(2)
+    const headerLag = Math.max(0, info.headers - info.blocks)
+    const minSyncedProgress = 0.9999
+
+    if (info.initialblockdownload) {
+      return { message: `Syncing blocks...${pct}%`, result: 'loading' as const }
+    }
+
+    // Flowee can occasionally report initialblockdownload=false before any meaningful chain state is present.
+    if (info.blocks <= 0 || info.headers <= 0) {
+      return { message: 'Waiting for first synced block', result: 'loading' as const }
+    }
+
+    if (headerLag > 2 || info.verificationprogress < minSyncedProgress) {
+      return {
+        message: `Syncing blocks...${pct}% (${info.blocks}/${info.headers})`,
+        result: 'loading' as const,
+      }
+    }
+
+    return {
+      message: `Synced — block ${info.blocks}`,
+      result: 'success' as const,
+    }
+  }
+
   /**
    * ======================== Daemons ========================
    */
@@ -147,14 +174,7 @@ export const main = sdk.setupMain(async ({ effects }: { effects: any }) => {
             if (res.exitCode !== 0) return { message: 'Waiting for sync info', result: 'loading' }
             const stdout = res.stdout.toString()
             const info: GetBlockchainInfo = JSON.parse(stdout)
-            if (info.initialblockdownload) {
-              const pct = (info.verificationprogress * 100).toFixed(2)
-              return { message: `Syncing blocks...${pct}%`, result: 'loading' }
-            }
-            return {
-              message: `Synced — block ${info.blocks}`,
-              result: 'success',
-            }
+            return getSyncHealth(info)
           } catch {
             return { message: 'Waiting for sync info', result: 'loading' }
           }
