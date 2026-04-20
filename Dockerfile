@@ -22,7 +22,7 @@ FROM ubuntu:24.04
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    ca-certificates libevent-2.1-7t64 libminiupnpc17 \
+    ca-certificates libevent-2.1-7t64 libevent-pthreads-2.1-7t64 libminiupnpc17 \
     libboost-filesystem1.83.0 libboost-thread1.83.0 \
     libboost-chrono1.83.0 libboost-program-options1.83.0 \
     libboost-iostreams1.83.0 \

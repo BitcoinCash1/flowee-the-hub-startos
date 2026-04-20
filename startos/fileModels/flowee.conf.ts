@@ -52,10 +52,25 @@ export const shape = z
     blocksizeacceptlimit: iniNumber,
     // Block creation
     blockmaxsize: iniNumber,
-    // Flowee Binary API (apilisten — binary protocol, much faster than JSON-RPC)
-    apilisten: iniString,
+    // Flowee Binary API (apibind — binary protocol, much faster than JSON-RPC)
+    apibind: iniString,
     api_max_addresses: iniNumber,
     api_connection_per_ip: iniNumber,
+    // Tor / Proxy
+    proxy: iniString,
+    onion: iniString,
+    listenonion: iniBoolean,
+    proxyrandomize: iniBoolean,
+    // Network buffers
+    maxreceivebuffer: iniNumber,
+    maxsendbuffer: iniNumber,
+    // Bandwidth
+    maxuploadtarget: iniNumber,
+    // External IP
+    externalip: iniStringArray,
+    // Thin blocks
+    'use-thinblocks': iniBoolean,
+    'min-thin-peers': iniNumber,
     // General
     maxorphantx: iniNumber,
     checkblocks: iniNumber,
@@ -81,6 +96,10 @@ function stringifyPrimitives(a: unknown): unknown {
 
 const { InputSpec, Value, List } = sdk
 
+const ONLYNET_VALUES = { ipv4: 'IPv4', ipv6: 'IPv6', onion: 'Tor (.onion)' } as const
+type OnlynetKey = keyof typeof ONLYNET_VALUES
+const ALL_ONLYNETS = Object.keys(ONLYNET_VALUES) as OnlynetKey[]
+
 export const fullConfigSpec = InputSpec.of({
   raw: Value.hidden(shape),
 
@@ -91,7 +110,31 @@ export const fullConfigSpec = InputSpec.of({
     default: true,
   }),
 
+  // ── Tor / Privacy ──────────────────────────────────────────────────────────
+  torEnabled: Value.toggle({
+    name: 'Tor Routing',
+    description:
+      'Route all outbound peer connections through the Tor network for enhanced privacy. ' +
+      'Requires the Tor package to be installed and running.',
+    default: true,
+  }),
+  torIsolation: Value.toggle({
+    name: 'Tor Stream Isolation',
+    description:
+      'Use a separate Tor circuit for each peer connection (proxyrandomize). ' +
+      'Provides stronger privacy at the cost of slightly slower connection establishment.',
+    default: true,
+  }),
+
   // ── Connection ─────────────────────────────────────────────────────────────
+  onlynet: Value.multiselect({
+    name: 'Allowed Networks',
+    description:
+      'Restrict peer connections to specific network types. ' +
+      'All checked = allow all (default). Uncheck to exclude a network.',
+    default: ALL_ONLYNETS,
+    values: ONLYNET_VALUES,
+  }),
   maxconnections: Value.number({
     name: 'Maximum Connections',
     description: 'Maximum number of peer connections.',
@@ -115,6 +158,56 @@ export const fullConfigSpec = InputSpec.of({
       {
         masked: false,
         placeholder: '192.168.1.10:8333',
+      },
+    ),
+  ),
+  maxuploadtarget: Value.number({
+    name: 'Max Upload Target',
+    description: 'Limit total outbound bandwidth per 24 hours. 0 = unlimited.',
+    required: false,
+    default: null,
+    min: 0,
+    max: null,
+    integer: true,
+    units: 'MB/day',
+    placeholder: '0 (unlimited)',
+  }),
+  maxreceivebuffer: Value.number({
+    name: 'Max Receive Buffer',
+    description: 'Maximum per-connection receive buffer in KB (n × 1000 bytes). Larger values allow more data in-flight per peer.',
+    required: false,
+    default: null,
+    min: 1,
+    max: 65536,
+    integer: true,
+    units: 'KB',
+    placeholder: '5000',
+  }),
+  maxsendbuffer: Value.number({
+    name: 'Max Send Buffer',
+    description: 'Maximum per-connection send buffer in KB (n × 1000 bytes).',
+    required: false,
+    default: null,
+    min: 1,
+    max: 65536,
+    integer: true,
+    units: 'KB',
+    placeholder: '1000',
+  }),
+  externalip: Value.list(
+    List.text(
+      {
+        name: 'External IP / Onion',
+        description:
+          'Manually specify your public IP address or .onion address for incoming connections. ' +
+          'Useful if auto-detection fails or you have a static IP.',
+        default: [],
+        minLength: null,
+        maxLength: null,
+      },
+      {
+        masked: false,
+        placeholder: '203.0.113.1 or yournode.onion',
       },
     ),
   ),
@@ -180,27 +273,59 @@ export const fullConfigSpec = InputSpec.of({
     units: 'threads',
     placeholder: '4',
   }),
+
+  // ── Thin Blocks ──────────────────────────────────────────────────────────
+  'use-thinblocks': Value.toggle({
+    name: 'Thin Blocks',
+    description:
+      'Enable xthin blocks to speed up block relay. Reduces bandwidth by sending compact block representations when peers already have most transactions in their mempool.',
+    default: true,
+  }),
+  'min-thin-peers': Value.number({
+    name: 'Min Thin-Capable Peers',
+    description:
+      'Minimum number of connections to maintain with thin-block-capable peers. Ensures the node always has peers that support the xthin protocol for faster block propagation.',
+    required: false,
+    default: 2,
+    min: 0,
+    max: 50,
+    integer: true,
+    placeholder: '2',
+  }),
 })
 
 function fileToForm(
   input: z.infer<typeof shape>,
 ): T.DeepPartial<typeof fullConfigSpec._TYPE> {
   const {
-    rest, maxconnections, addnode,
+    rest, maxconnections, addnode, onlynet,
     maxmempool, minrelaytxfee, mempoolexpiry,
     blocksizeacceptlimit, rpcthreads,
+    maxreceivebuffer, maxsendbuffer, maxuploadtarget, externalip,
   } = input
+
+  // When no onlynet is written in conf, all networks are allowed — show all checked
+  const onlynetFromConf = onlynet?.filter((v): v is string => !!v) ?? []
+  const onlynetForm = onlynetFromConf.length === 0 ? [...ALL_ONLYNETS] : onlynetFromConf as OnlynetKey[]
 
   return {
     raw: input ?? {},
     rest,
     maxconnections,
+    onlynet: onlynetForm,
     addnode: addnode?.filter((v): v is string => !!v) ?? [],
+    maxuploadtarget,
+    maxreceivebuffer,
+    maxsendbuffer,
+    externalip: externalip?.filter((v): v is string => !!v) ?? [],
     maxmempool,
     minrelaytxfee,
     mempoolexpiry,
     blocksizeacceptlimit,
     rpcthreads,
+    'use-thinblocks': input['use-thinblocks'] ?? true,
+    'min-thin-peers': input['min-thin-peers'] ?? 2,
+    // torEnabled / torIsolation come from store.json, overlaid by the action handler
   }
 }
 
@@ -208,10 +333,18 @@ function formToFile(
   input: T.DeepPartial<typeof fullConfigSpec._TYPE>,
 ): z.infer<typeof shape> {
   const {
-    raw, rest, maxconnections, addnode,
+    raw, rest, maxconnections, onlynet, addnode,
     maxmempool, minrelaytxfee, mempoolexpiry,
     blocksizeacceptlimit, rpcthreads,
+    maxreceivebuffer, maxsendbuffer, maxuploadtarget, externalip,
   } = input
+
+  // If all networks selected (or none specified), don't write onlynet (means allow all)
+  const onlynetList = (onlynet as string[] | undefined)?.filter(Boolean) ?? []
+  const allSelected = ALL_ONLYNETS.every((n) => onlynetList.includes(n))
+  const writeOnlynet = onlynetList.length > 0 && !allSelected ? onlynetList : undefined
+
+  const externalipList = (externalip as string[] | undefined)?.filter(Boolean) ?? []
 
   return {
     ...raw,
@@ -221,16 +354,23 @@ function formToFile(
     rpcallowip: '0.0.0.0/0',
     rpcport: 8332,
     port: 8333,
-    apilisten: '0.0.0.0:1235',
     rest: rest ?? false,
     maxconnections: maxconnections ?? undefined,
+    onlynet: writeOnlynet,
     addnode: addnode && (addnode as string[]).length > 0 ? (addnode as string[]).filter(Boolean) : undefined,
-    onlynet: raw?.onlynet?.filter((v): v is string => !!v),
+    maxuploadtarget: maxuploadtarget ?? undefined,
+    maxreceivebuffer: maxreceivebuffer ?? undefined,
+    maxsendbuffer: maxsendbuffer ?? undefined,
+    externalip: externalipList.length > 0 ? externalipList : undefined,
     maxmempool: maxmempool ?? undefined,
     minrelaytxfee: minrelaytxfee ?? undefined,
     mempoolexpiry: mempoolexpiry ?? undefined,
     blocksizeacceptlimit: blocksizeacceptlimit ?? undefined,
     rpcthreads: rpcthreads ?? undefined,
+    'use-thinblocks': input['use-thinblocks'] ?? true,
+    'min-thin-peers': input['min-thin-peers'] ?? 2,
+    // proxy / onion / listenonion / proxyrandomize are set as daemon args in main.ts
+    // torEnabled / torIsolation live in store.json, not in flowee.conf
   }
 }
 

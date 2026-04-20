@@ -17,6 +17,8 @@ export const shape = z
     initialized: z.boolean().catch(false),
     reindex: z.boolean().catch(false),
     fullySynced: z.boolean().catch(false),
+    torEnabled: z.boolean().catch(true),
+    torIsolation: z.boolean().catch(true),
   })
   .strip()
 

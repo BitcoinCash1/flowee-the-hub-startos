@@ -25,12 +25,32 @@ export const main = sdk.setupMain(async ({ effects }: { effects: any }) => {
     await storeJson.merge(effects, { reindex: false })
   }
 
+  const torEnabled = store?.torEnabled ?? true
+  const torIsolation = store?.torIsolation ?? true
+
+  // Get Tor container IP (triggers restart if it changes)
+  const torIp = torEnabled
+    ? await sdk.getContainerIp(effects, { packageId: 'tor' }).const()
+    : null
+
   // ── Build command args ─────
   const daemonArgs: string[] = [
     `-conf=${rootDir}/flowee.conf`,
     `-datadir=${rootDir}`,
+    `-apibind=0.0.0.0:1235`,
+    `-use-thinblocks`,
+    `-min-thin-peers=2`,
     ...(reindex ? ['-reindex'] : []),
   ]
+
+  if (torIp) {
+    daemonArgs.push(`-proxy=${torIp}:9050`)
+    daemonArgs.push(`-onion=${torIp}:9050`)
+    daemonArgs.push(`-listenonion`)
+    if (torIsolation) {
+      daemonArgs.push(`-proxyrandomize=1`)
+    }
+  }
 
   const nodeSub = await sdk.SubContainer.of(
     effects,
@@ -39,10 +59,11 @@ export const main = sdk.setupMain(async ({ effects }: { effects: any }) => {
     'node-sub',
   )
 
-  // Helper: run JSON-RPC call via hub-cli (cookie auth via -datadir)
+  // Helper: run JSON-RPC call via hub-cli (reads rpcuser/rpcpassword from flowee.conf)
   async function rpcCall(method: string, ...params: unknown[]) {
     return nodeSub.exec([
       'hub-cli',
+      `-conf=${rootDir}/flowee.conf`,
       `-rpcconnect=127.0.0.1`,
       `-rpcport=${rpcPort}`,
       `-datadir=${rootDir}`,
@@ -99,6 +120,23 @@ export const main = sdk.setupMain(async ({ effects }: { effects: any }) => {
         },
       },
       requires: ['nocow'],
+    })
+    .addHealthCheck('flowee-api', {
+      ready: {
+        display: 'Flowee API',
+        fn: async () => {
+          try {
+            // Probe the native Flowee protobuf API port (apibind=0.0.0.0:1235)
+            const res = await nodeSub.exec(['nc', '-z', '127.0.0.1', '1235'])
+            return res.exitCode === 0
+              ? { message: 'Flowee Hub API is listening on port 1235', result: 'success' }
+              : { message: 'Flowee Hub API not yet ready', result: 'loading' }
+          } catch {
+            return { message: 'Flowee Hub API not yet ready', result: 'loading' }
+          }
+        },
+      },
+      requires: ['primary'],
     })
     .addHealthCheck('sync-progress', {
       ready: {
@@ -158,6 +196,36 @@ export const main = sdk.setupMain(async ({ effects }: { effects: any }) => {
       },
       requires: ['primary'],
     })
+    .addHealthCheck('tor', {
+      ready: {
+        display: 'Tor',
+        fn: async () => {
+          if (!torEnabled) {
+            return { message: 'Tor routing is disabled in config', result: 'disabled' }
+          }
+          if (!torIp) {
+            return { message: 'Tor package not reachable', result: 'failure' }
+          }
+          return { message: `Routing through Tor (${torIp})${torIsolation ? ' with stream isolation' : ''}`, result: 'success' }
+        },
+      },
+      requires: ['primary'],
+    })
+    .addHealthCheck('clearnet', {
+      ready: {
+        display: 'Clearnet',
+        fn: async () => {
+          const conf = await floweeConfFile.read().once()
+          const onlynet: string[] = (conf?.onlynet as string[] | undefined)?.filter(Boolean) ?? []
+          const onionOnly = onlynet.length > 0 && onlynet.every((n) => n === 'onion')
+          if (onionOnly) {
+            return { message: 'Clearnet disabled — onlynet=onion is set', result: 'disabled' }
+          }
+          return { message: 'Direct clearnet connections active', result: 'success' }
+        },
+      },
+      requires: ['primary'],
+    })
     .addDaemon('indexer', {
       subcontainer: nodeSub,
       exec: {
@@ -177,6 +245,6 @@ export const main = sdk.setupMain(async ({ effects }: { effects: any }) => {
           }
         },
       },
-      requires: ['primary'],
+      requires: ['sync-progress'],
     })
 })

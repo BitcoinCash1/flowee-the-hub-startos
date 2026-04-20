@@ -30,6 +30,8 @@ export const seedFiles = sdk.setupOnInit(async (effects, kind) => {
     initialized: true,
     reindex: false,
     fullySynced: false,
+    torEnabled: true,
+    torIsolation: true,
   })
 
   await floweeConfFile.merge(effects, {

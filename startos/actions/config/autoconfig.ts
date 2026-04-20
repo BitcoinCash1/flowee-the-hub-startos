@@ -1,4 +1,5 @@
 import { floweeConfFile, fullConfigSpec } from '../../fileModels/flowee.conf'
+import { storeJson } from '../../fileModels/store.json'
 import { sdk } from '../../sdk'
 
 export const autoconfig = sdk.Action.withInput(
@@ -25,7 +26,22 @@ export const autoconfig = sdk.Action.withInput(
       )
   },
 
-  async ({ effects }) => floweeConfFile.read().once(),
+  async ({ effects }) => {
+    const conf = await floweeConfFile.read().once()
+    const store = await storeJson.read().once()
+    return {
+      ...conf,
+      torEnabled: store?.torEnabled ?? true,
+      torIsolation: store?.torIsolation ?? true,
+    }
+  },
 
-  ({ effects, input }) => floweeConfFile.merge(effects, input),
+  async ({ effects, input }) => {
+    const { torEnabled, torIsolation, ...confInput } = input as any
+    await floweeConfFile.merge(effects, confInput)
+    await storeJson.merge(effects, {
+      torEnabled: torEnabled ?? true,
+      torIsolation: torIsolation ?? true,
+    })
+  },
 )
