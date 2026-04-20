@@ -280,24 +280,9 @@ export const fullConfigSpec = InputSpec.of({
     placeholder: '4',
   }),
 
-  // ── Thin Blocks ──────────────────────────────────────────────────────────
-  'use-thinblocks': Value.toggle({
-    name: 'Thin Blocks',
-    description:
-      'Enable xthin blocks to speed up block relay. Reduces bandwidth by sending compact block representations when peers already have most transactions in their mempool.',
-    default: true,
-  }),
-  'min-thin-peers': Value.number({
-    name: 'Min Thin-Capable Peers',
-    description:
-      'Minimum number of connections to maintain with thin-block-capable peers. Ensures the node always has peers that support the xthin protocol for faster block propagation.',
-    required: false,
-    default: 2,
-    min: 0,
-    max: 50,
-    integer: true,
-    placeholder: '2',
-  }),
+  // xthin is intentionally always enabled and hidden from UI.
+  'use-thinblocks': Value.hidden(z.boolean().catch(true)),
+  'min-thin-peers': Value.hidden(z.number().int().catch(2)),
 })
 
 function fileToForm(
@@ -331,8 +316,8 @@ function fileToForm(
     mempoolexpiry,
     blocksizeacceptlimit,
     rpcthreads,
-    'use-thinblocks': input['use-thinblocks'] ?? true,
-    'min-thin-peers': input['min-thin-peers'] ?? 2,
+    'use-thinblocks': true,
+    'min-thin-peers': 2,
     // torEnabled / torIsolation come from store.json, overlaid by the action handler
   }
 }
@@ -377,8 +362,8 @@ function formToFile(
     mempoolexpiry: mempoolexpiry ?? undefined,
     blocksizeacceptlimit: blocksizeacceptlimit ?? undefined,
     rpcthreads: rpcthreads ?? undefined,
-    'use-thinblocks': input['use-thinblocks'] ?? true,
-    'min-thin-peers': input['min-thin-peers'] ?? 2,
+    'use-thinblocks': true,
+    'min-thin-peers': 2,
     // proxy / onion / listenonion / proxyrandomize are set as daemon args in main.ts
     // torEnabled / torIsolation live in store.json, not in flowee.conf
   }

@@ -26,8 +26,6 @@ export const rpcPeersSettings = sdk.Action.withInput(
     maxsendbuffer: true,
     addnode: true,
     externalip: true,
-    'use-thinblocks': true,
-    'min-thin-peers': true,
   }),
 
   async ({ effects }) => {
