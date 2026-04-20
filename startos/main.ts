@@ -1,24 +1,21 @@
 import { sdk } from './sdk'
-import { rootDir, rpcPort, peerPort, GetBlockchainInfo, GetPeerInfo } from './utils'
+import { rootDir, rpcPort, GetBlockchainInfo, GetPeerInfo } from './utils'
 import { floweeConfFile } from './fileModels/flowee.conf'
 import { storeJson } from './fileModels/store.json'
 import { mainMounts } from './mounts'
 
 export { mainMounts }
 
-export const main = sdk.setupMain(async ({ effects }) => {
+export const main = sdk.setupMain(async ({ effects }: { effects: any }) => {
   /**
    * ======================== Setup ========================
    */
 
   // Read flowee.conf (watch for changes — restarts on change)
-  const floweeConf = await floweeConfFile.read().const(effects)
+  await floweeConfFile.read().const(effects)
 
   // Read credentials from store
   const store = await storeJson.read().once()
-  const activeCred = store?.rpcCredentials?.[0]
-  const rpcUser = store?.rpcUser ?? activeCred?.username ?? 'flowee'
-  const rpcPassword = store?.rpcPassword ?? activeCred?.password ?? ''
 
   console.log('Starting Flowee the Hub!')
 
@@ -42,14 +39,13 @@ export const main = sdk.setupMain(async ({ effects }) => {
     'node-sub',
   )
 
-  // Helper: run JSON-RPC call via hub-cli
+  // Helper: run JSON-RPC call via hub-cli (cookie auth via -datadir)
   async function rpcCall(method: string, ...params: unknown[]) {
     return nodeSub.exec([
       'hub-cli',
       `-rpcconnect=127.0.0.1`,
       `-rpcport=${rpcPort}`,
-      `-rpcuser=${rpcUser}`,
-      `-rpcpassword=${rpcPassword}`,
+      `-datadir=${rootDir}`,
       method,
       ...params.map(String),
     ])
@@ -93,7 +89,7 @@ export const main = sdk.setupMain(async ({ effects }) => {
         display: 'RPC',
         fn: async () => {
           try {
-            const res = await rpcCall('getrpcinfo')
+            const res = await rpcCall('getblockchaininfo')
             return res.exitCode === 0
               ? { message: 'The Flowee RPC Interface is ready', result: 'success' }
               : { message: 'The Flowee RPC Interface is not ready', result: 'starting' }
