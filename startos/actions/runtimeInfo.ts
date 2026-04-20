@@ -52,9 +52,16 @@ export const runtimeInfo = sdk.Action.withoutInput(
           lines.push(`Connections: ${net.connections}`)
         }
         if (chain) {
+          const headerLag = Math.max(0, chain.headers - chain.blocks)
+          const looksSynced = !chain.initialblockdownload
+            && chain.blocks > 0
+            && chain.headers > 0
+            && headerLag <= 2
+            && chain.verificationprogress >= 0.9999
+
           lines.push(`Chain: ${chain.chain}`)
           lines.push(`Blocks: ${chain.blocks} / ${chain.headers}`)
-          lines.push(`Sync: ${chain.initialblockdownload ? `${(chain.verificationprogress * 100).toFixed(2)}%` : 'Complete'}`)
+          lines.push(`Sync: ${looksSynced ? 'Complete' : `${(chain.verificationprogress * 100).toFixed(2)}%`}`)
         }
 
         return {
