@@ -141,6 +141,12 @@ export const fullConfigSpec = InputSpec.of({
       'Force peer connections to Tor only (equivalent to onlynet=onion). Disabled by default so Tor and clearnet can coexist.',
     default: false,
   }),
+  advertiseClearnetInbound: Value.toggle({
+    name: 'Advertise Clearnet Inbound',
+    description:
+      'Publish your public IPv4 and IPv6 clearnet endpoints for inbound peers. Respects the Allowed Networks setting — a network excluded by onlynet (or by Onion-Only Mode) is never advertised. Disabled by default for privacy.',
+    default: false,
+  }),
   maxconnections: Value.number({
     name: 'Maximum Connections',
     description: 'Maximum number of peer connections.',

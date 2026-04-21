@@ -19,6 +19,7 @@ export const shape = z
     fullySynced: z.boolean().catch(false),
     torEnabled: z.boolean().catch(true),
     torIsolation: z.boolean().catch(true),
+    advertiseClearnetInbound: z.boolean().catch(false),
   })
   .strip()
 

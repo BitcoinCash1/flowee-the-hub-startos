@@ -12,7 +12,7 @@ export const main = sdk.setupMain(async ({ effects }: { effects: any }) => {
    */
 
   // Read flowee.conf (watch for changes — restarts on change)
-  await floweeConfFile.read().const(effects)
+  const conf = await floweeConfFile.read().const(effects)
 
   // Read credentials from store
   const store = await storeJson.read().once()
@@ -27,6 +27,11 @@ export const main = sdk.setupMain(async ({ effects }: { effects: any }) => {
 
   const torEnabled = store?.torEnabled ?? true
   const torIsolation = store?.torIsolation ?? true
+
+  const onlynetList: string[] = ((conf?.onlynet as string[] | undefined) ?? []).filter(Boolean)
+  const onlynetActive = onlynetList.length > 0
+  const onionOnly = onlynetActive && onlynetList.every((n) => n === 'onion')
+  const externalip: string[] = ((conf?.externalip as string[] | undefined) ?? []).filter(Boolean)
 
   // Get Tor container IP (triggers restart if it changes)
   const torIp = torEnabled
@@ -226,22 +231,48 @@ export const main = sdk.setupMain(async ({ effects }: { effects: any }) => {
           if (!torIp) {
             return { message: 'Tor package not reachable', result: 'failure' }
           }
-          return { message: `Routing through Tor (${torIp})${torIsolation ? ' with stream isolation' : ''}`, result: 'success' }
+          if (onlynetActive && !onlynetList.includes('onion')) {
+            return { message: 'Excluded by onlynet', result: 'disabled' }
+          }
+          const hasOnion = externalip.some((ip) => ip.includes('.onion'))
+          const base = `Routing through Tor (${torIp})${torIsolation ? ' with stream isolation' : ''}`
+          return {
+            message: hasOnion
+              ? `${base} — inbound and outbound connections`
+              : `${base} — outbound only. Add an onion address to enable inbound.`,
+            result: 'success',
+          }
         },
       },
       requires: ['primary'],
+    })
+    .addHealthCheck('i2p', {
+      ready: {
+        display: 'I2P',
+        fn: () => ({
+          result: 'disabled' as const,
+          message: 'I2P support is not implemented yet.',
+        }),
+      },
+      requires: [],
     })
     .addHealthCheck('clearnet', {
       ready: {
         display: 'Clearnet',
         fn: async () => {
-          const conf = await floweeConfFile.read().once()
-          const onlynet: string[] = (conf?.onlynet as string[] | undefined)?.filter(Boolean) ?? []
-          const onionOnly = onlynet.length > 0 && onlynet.every((n) => n === 'onion')
           if (onionOnly) {
             return { message: 'Clearnet disabled — onlynet=onion is set', result: 'disabled' }
           }
-          return { message: 'Direct clearnet connections active', result: 'success' }
+          if (onlynetActive && !onlynetList.includes('ipv4') && !onlynetList.includes('ipv6')) {
+            return { message: 'Excluded by onlynet', result: 'disabled' }
+          }
+          const hasClearnet = externalip.some((ip) => ip && !ip.includes('.onion'))
+          return {
+            message: hasClearnet
+              ? 'Inbound and outbound connections'
+              : 'Outbound only. Publish an IP address to enable inbound.',
+            result: 'success',
+          }
         },
       },
       requires: ['primary'],

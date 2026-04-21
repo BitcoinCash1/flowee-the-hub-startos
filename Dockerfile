@@ -26,7 +26,7 @@ RUN apt-get update && \
     libboost-filesystem1.83.0 libboost-thread1.83.0 \
     libboost-chrono1.83.0 libboost-program-options1.83.0 \
     libboost-iostreams1.83.0 \
-    libssl3t64 curl jq \
+    libssl3t64 curl jq netcat-openbsd e2fsprogs \
     libqt6core6t64 libqt6network6t64 libqt6sql6t64 libqt6dbus6t64 \
     && rm -rf /var/lib/apt/lists/*
 

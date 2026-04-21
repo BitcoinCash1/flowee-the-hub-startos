@@ -19,13 +19,13 @@ export const rpcPeersSettings = sdk.Action.withInput(
     torIsolation: true,
     onlynet: true,
     onionOnly: true,
+    advertiseClearnetInbound: true,
     rpcthreads: true,
     maxconnections: true,
     maxuploadtarget: true,
     maxreceivebuffer: true,
     maxsendbuffer: true,
     addnode: true,
-    externalip: true,
   }),
 
   async ({ effects }) => {
@@ -35,15 +35,17 @@ export const rpcPeersSettings = sdk.Action.withInput(
       ...conf,
       torEnabled: store?.torEnabled ?? true,
       torIsolation: store?.torIsolation ?? true,
+      advertiseClearnetInbound: store?.advertiseClearnetInbound ?? false,
     }
   },
 
   async ({ effects, input }) => {
-    const { torEnabled, torIsolation, ...confInput } = input as any
+    const { torEnabled, torIsolation, advertiseClearnetInbound, ...confInput } = input as any
     await floweeConfFile.merge(effects, confInput)
     await storeJson.merge(effects, {
       torEnabled: torEnabled ?? true,
       torIsolation: torIsolation ?? true,
+      advertiseClearnetInbound: !!advertiseClearnetInbound,
     })
     return null
   },
