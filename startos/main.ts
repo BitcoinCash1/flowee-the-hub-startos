@@ -124,6 +124,14 @@ export const main = sdk.setupMain(async ({ effects }: { effects: any }) => {
             if (chattrRes.exitCode !== 0) {
               console.warn(`nocow: chattr not applied for ${rootDir}; continuing startup`)
             }
+            // Strip any legacy onion `externalip=` lines from flowee.conf.
+            // Flowee's hub cannot resolve onion hostnames at argument-parse
+            // time; onion reachability is handled via -listenonion through
+            // the Tor proxy instead.
+            await nodeSub.exec([
+              'sh', '-c',
+              `test -f ${rootDir}/flowee.conf && sed -i '/^externalip=.*\\.onion/d' ${rootDir}/flowee.conf || true`,
+            ])
           } catch (err) {
             console.warn('nocow: unable to set NoCOW attributes; continuing startup', err)
           }
