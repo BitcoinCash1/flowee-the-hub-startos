@@ -32,16 +32,10 @@ export const watchHosts = sdk.setupOnInit(async (effects) => {
 
   const externalip: string[] = []
 
-  const onions = publicInfo
-    .filter({
-      predicate: ({ metadata }) =>
-        metadata.kind === 'plugin' && metadata.packageId === 'tor',
-    })
-    .format('hostname-info')
-    .map(toHostPort)
-
-  externalip.push(...onions)
-
+  // Note: Flowee hub rejects onion addresses in -externalip at argument-parse
+  // time (it attempts DNS resolution before the Tor proxy is applied). Onion
+  // reachability is still provided via -listenonion through the Tor proxy, so
+  // we only advertise clearnet endpoints here.
   if (advertiseClearnetInbound) {
     if (allowIpv4) {
       const ipv4s = publicInfo
