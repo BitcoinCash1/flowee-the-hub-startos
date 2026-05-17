@@ -34,7 +34,6 @@ RUN apt-get update && \
 COPY --from=build /build/thehub/build/hub/hub /usr/local/bin/
 COPY --from=build /build/thehub/build/hub/hub-cli /usr/local/bin/
 COPY --from=build /build/thehub/build/indexer/indexer /usr/local/bin/
-COPY --from=build /usr/lib/x86_64-linux-gnu/libboost_*.so.1.83.0 /usr/lib/x86_64-linux-gnu/
 
 RUN mkdir -p /data
 VOLUME /data
