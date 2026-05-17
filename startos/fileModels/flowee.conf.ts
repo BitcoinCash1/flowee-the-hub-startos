@@ -32,6 +32,9 @@ const iniBoolean = z
 
 export const shape = z
   .object({
+    // RPC Auth
+    rpcuser: iniString,
+    rpcpassword: iniString,
     // RPC
     server: z.literal(true).catch(true),
     rpcbind: iniString,
@@ -349,12 +352,18 @@ function formToFile(
 
   return {
     ...raw,
+    rpcuser: raw?.rpcuser,
+    rpcpassword: raw?.rpcpassword,
     server: true,
     listen: true,
     rpcbind: '0.0.0.0',
     rpcallowip: '0.0.0.0/0',
     rpcport: 8332,
     port: 8333,
+<<<<<<< HEAD
+=======
+    apibind: '0.0.0.0:1235',
+>>>>>>> 30bedd3 (feat: update to Flowee 2026.05.0; fix apilisten→apibind config rename)
     rest: rest ?? false,
     maxconnections: maxconnections ?? undefined,
     onlynet: writeOnlynet,

@@ -8,7 +8,7 @@ RUN apt-get update && \
     pkg-config qt6-tools-dev-tools qt6-tools-dev && \
     rm -rf /var/lib/apt/lists/*
 
-ARG FLOWEE_VERSION=2026.02.0
+ARG FLOWEE_VERSION=2026.05.0
 WORKDIR /build
 RUN git clone --depth 1 --branch ${FLOWEE_VERSION} \
     https://codeberg.org/Flowee/thehub.git
@@ -21,6 +21,7 @@ RUN cmake -Dbuild_apps=ON CMakeLists.txt .. && \
 FROM ubuntu:24.04
 
 RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive \
     apt-get install -y --no-install-recommends \
     ca-certificates libevent-2.1-7t64 libevent-pthreads-2.1-7t64 libminiupnpc17 \
     libboost-filesystem1.83.0 libboost-thread1.83.0 \
@@ -33,6 +34,7 @@ RUN apt-get update && \
 COPY --from=build /build/thehub/build/hub/hub /usr/local/bin/
 COPY --from=build /build/thehub/build/hub/hub-cli /usr/local/bin/
 COPY --from=build /build/thehub/build/indexer/indexer /usr/local/bin/
+COPY --from=build /usr/lib/x86_64-linux-gnu/libboost_*.so.1.83.0 /usr/lib/x86_64-linux-gnu/
 
 RUN mkdir -p /data
 VOLUME /data

@@ -140,6 +140,23 @@ export const main = sdk.setupMain(async ({ effects }: { effects: any }) => {
       },
       requires: [],
     })
+    .addOneshot('sanitize-config', {
+      subcontainer: nodeSub,
+      exec: {
+        fn: async () => {
+          const res = await nodeSub.exec([
+            'sh',
+            '-lc',
+            `if [ -f ${rootDir}/flowee.conf ]; then sed -i '/^apilisten=/d' ${rootDir}/flowee.conf; fi`,
+          ])
+          if (res.exitCode !== 0) {
+            console.warn('sanitize-config: failed to remove deprecated apilisten option')
+          }
+          return null
+        },
+      },
+      requires: ['nocow'],
+    })
     .addDaemon('primary', {
       subcontainer: nodeSub,
       exec: {
@@ -159,7 +176,7 @@ export const main = sdk.setupMain(async ({ effects }: { effects: any }) => {
           }
         },
       },
-      requires: ['nocow'],
+      requires: ['sanitize-config'],
     })
     .addHealthCheck('flowee-api', {
       ready: {
