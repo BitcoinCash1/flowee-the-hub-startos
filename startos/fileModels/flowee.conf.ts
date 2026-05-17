@@ -360,10 +360,7 @@ function formToFile(
     rpcallowip: '0.0.0.0/0',
     rpcport: 8332,
     port: 8333,
-<<<<<<< HEAD
-=======
     apibind: '0.0.0.0:1235',
->>>>>>> 30bedd3 (feat: update to Flowee 2026.05.0; fix apilisten→apibind config rename)
     rest: rest ?? false,
     maxconnections: maxconnections ?? undefined,
     onlynet: writeOnlynet,
