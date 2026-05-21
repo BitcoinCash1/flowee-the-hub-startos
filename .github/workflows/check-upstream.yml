@@ -20,8 +20,8 @@ jobs:
       - name: Check for new upstream Flowee release
         run: |
           set -euo pipefail
-          LATEST=$(curl -s 'https://codeberg.org/api/v1/repos/Flowee/thehub/releases?limit=1' \
-            | python3 -c "import sys,json; r=json.load(sys.stdin); print(r[0]['tag_name'] if r else '')" 2>/dev/null || echo "")
+          LATEST=$(curl -s 'https://codeberg.org/api/v1/repos/Flowee/thehub/tags?limit=1' \
+            | python3 -c "import sys,json; r=json.load(sys.stdin); print(r[0]['name'] if r else '')" 2>/dev/null || echo "")
           if [ -z "$LATEST" ]; then echo "Could not fetch upstream version"; exit 0; fi
 
           CURRENT=$(grep -E '^ARG FLOWEE_VERSION=' Dockerfile.binary | cut -d= -f2)
