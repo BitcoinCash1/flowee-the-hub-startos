@@ -1,5 +1,8 @@
 # Flowee the Hub on StartOS
 
+<img width="1024" height="1024" alt="icon" src="https://github.com/user-attachments/assets/cd2a99ba-1061-4296-94d6-1ea92108a1e0" />
+
+
 > Upstream repo: [https://codeberg.org/Flowee/thehub](https://codeberg.org/Flowee/thehub)
 
 A Bitcoin Cash full node implementation for StartOS. Flowee the Hub provides fast block propagation
