@@ -46,32 +46,52 @@ The node begins syncing the full BCH blockchain from genesis (Flowee has its own
 
 ## Configuration Management
 
-Configuration is stored in `flowee.conf` (INI format). Editable through the StartOS Settings action:
+Configuration is stored in `flowee.conf` (INI format). Editable through the StartOS Settings actions:
 
+- **Network** — Select mainnet, testnet3, testnet4, scalenet, chipnet, or regtest
 - REST API toggle
 - Maximum connections
 - Manual peer list (addnode)
-- Mempool size, relay fee, expiry
+- Mempool size, relay fee, expiry, max orphan transactions
 - Block size accept limit
 - RPC thread count
 
 ## Network Access and Interfaces
 
+Ports adjust automatically when a different network is selected.
+
+| Network  | RPC Port | P2P Port |
+|----------|----------|----------|
+| mainnet  | 8332     | 8333     |
+| testnet3 | 18332    | 18333    |
+| testnet4 | 28342    | 28343    |
+| scalenet | 38332    | 38333    |
+| chipnet  | 48332    | 48333    |
+| regtest  | 18443    | 18444    |
+
 | Interface   | Port | Protocol | Description                          |
 |-------------|------|----------|--------------------------------------|
-| RPC         | 8332 | HTTP     | JSON-RPC commands                    |
+| RPC         | 8332 | HTTP     | JSON-RPC commands (mainnet default)  |
 | Peer (P2P)  | 8333 | TCP      | Bitcoin Cash peer-to-peer network    |
-| Flowee API  | 1235 | HTTP     | Native Flowee API                    |
+| Flowee API  | 1235 | HTTP     | Native Flowee protobuf API           |
 
 ## Actions (StartOS UI)
 
-| Action              | Group        | Description                                |
-|---------------------|--------------|--------------------------------------------|
-| Node Info           | —            | Display version, sync status, peer count   |
-| Settings            | —            | Configure node parameters                  |
-| View RPC Credentials| Credentials  | Show RPC username, password, port          |
-| Reindex Blockchain  | Maintenance  | Re-verify all blocks from genesis          |
-| Auto-Configure      | (hidden)     | Used by dependent packages                 |
+| Action                  | Group         | Description                                     |
+|-------------------------|---------------|-------------------------------------------------|
+| Node Info               | —             | Display version, sync status, peer count        |
+| Network                 | Configuration | Select BCH network (mainnet/testnets)           |
+| Node Settings           | Configuration | Configure REST API and block size limit         |
+| RPC & Peers Settings    | Configuration | Tune connections, onlynet, buffers              |
+| Mempool & Block Policy  | Configuration | Mempool size, relay fee, expiry, orphan limit   |
+| View RPC Credentials    | Credentials   | Show RPC username, password, port               |
+| Generate RPC Credential | Credentials   | Create a new named RPC credential               |
+| Delete RPC Credentials  | Credentials   | Remove RPC credentials                          |
+| Reindex Blockchain      | Maintenance   | Re-verify all blocks from genesis               |
+| Delete Peer List        | Maintenance   | Remove peers.dat, rebuild from DNS seeds        |
+| Delete Test Network Data| Maintenance   | Free disk space for selected test networks      |
+| Delete Transaction Index| Maintenance   | Remove indexer DB, force rebuild on next start  |
+| Auto-Configure          | (hidden)      | Used by dependent packages                      |
 
 ## Backups and Restore
 
@@ -127,9 +147,12 @@ architectures: [x86_64]
 volumes:
   main: /data
 ports:
-  rpc: 8332
-  peer: 8333
+  rpc: 8332 (mainnet; adjusts per network)
+  peer: 8333 (mainnet; adjusts per network)
   api: 1235
+networks: [mainnet, testnet3, testnet4, scalenet, chipnet, regtest]
 dependencies: none
-actions: [runtime-info, settings, view-credentials, reindex, autoconfig(hidden)]
+actions: [runtime-info, network-config, node-settings, rpc-peers-settings, mempool-settings,
+          view-credentials, generate-credential, delete-credentials, reindex,
+          delete-peer-list, delete-test-network-data, delete-transaction-index, autoconfig(hidden)]
 ```
