@@ -1,5 +1,5 @@
 import { sdk } from './sdk'
-import { rootDir, rpcPort, GetBlockchainInfo, GetPeerInfo } from './utils'
+import { rootDir, networkPorts, networkFlag, Network, GetBlockchainInfo, GetPeerInfo } from './utils'
 import { floweeConfFile } from './fileModels/flowee.conf'
 import { storeJson } from './fileModels/store.json'
 import { mainMounts } from './mounts'
@@ -14,8 +14,11 @@ export const main = sdk.setupMain(async ({ effects }: { effects: any }) => {
   // Read flowee.conf (watch for changes — restarts on change)
   const conf = await floweeConfFile.read().const(effects)
 
-  // Read credentials from store
+  // Read credentials and network from store
   const store = await storeJson.read().once()
+  const network: Network = store?.network ?? 'mainnet'
+  const { rpc: rpcPort, peer: peerPort } = networkPorts[network]
+  const netFlag = networkFlag[network]
 
   console.log('Starting Flowee the Hub!')
 
@@ -42,9 +45,12 @@ export const main = sdk.setupMain(async ({ effects }: { effects: any }) => {
   const daemonArgs: string[] = [
     `-conf=${rootDir}/flowee.conf`,
     `-datadir=${rootDir}`,
+    `-rpcport=${rpcPort}`,
+    `-port=${peerPort}`,
     `-apibind=0.0.0.0:1235`,
     `-use-thinblocks`,
     `-min-thin-peers=2`,
+    ...(netFlag ? [netFlag] : []),
     ...(reindex ? ['-reindex'] : []),
   ]
 

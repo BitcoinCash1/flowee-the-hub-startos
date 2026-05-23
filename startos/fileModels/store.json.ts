@@ -14,6 +14,9 @@ export const shape = z
       .catch([]),
     rpcUser: z.string().catch('flowee'),
     rpcPassword: z.string().catch(''),
+    network: z
+      .enum(['mainnet', 'testnet', 'testnet4', 'scalenet', 'chipnet', 'regtest'])
+      .catch('mainnet'),
     initialized: z.boolean().catch(false),
     reindex: z.boolean().catch(false),
     fullySynced: z.boolean().catch(false),

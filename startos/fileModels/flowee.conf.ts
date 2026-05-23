@@ -262,6 +262,17 @@ export const fullConfigSpec = InputSpec.of({
     units: 'hours',
     placeholder: '72',
   }),
+  maxorphantx: Value.number({
+    name: 'Max Orphan Transactions',
+    description: 'Maximum number of unconnectable transactions to keep in memory.',
+    required: false,
+    default: null,
+    min: 0,
+    max: null,
+    integer: true,
+    units: 'transactions',
+    placeholder: '5000',
+  }),
 
   // ── Block Policy ──────────────────────────────────────────────────────────
   blocksizeacceptlimit: Value.number({
@@ -299,7 +310,7 @@ function fileToForm(
 ): T.DeepPartial<typeof fullConfigSpec._TYPE> {
   const {
     rest, maxconnections, addnode, onlynet,
-    maxmempool, minrelaytxfee, mempoolexpiry,
+    maxmempool, minrelaytxfee, mempoolexpiry, maxorphantx,
     blocksizeacceptlimit, rpcthreads,
     maxreceivebuffer, maxsendbuffer, maxuploadtarget, externalip,
   } = input
@@ -323,6 +334,7 @@ function fileToForm(
     maxmempool,
     minrelaytxfee,
     mempoolexpiry,
+    maxorphantx,
     blocksizeacceptlimit,
     rpcthreads,
     'use-thinblocks': true,
@@ -336,7 +348,7 @@ function formToFile(
 ): z.infer<typeof shape> {
   const {
     raw, rest, maxconnections, onlynet, onionOnly, addnode,
-    maxmempool, minrelaytxfee, mempoolexpiry,
+    maxmempool, minrelaytxfee, mempoolexpiry, maxorphantx,
     blocksizeacceptlimit, rpcthreads,
     maxreceivebuffer, maxsendbuffer, maxuploadtarget, externalip,
   } = input
@@ -358,8 +370,10 @@ function formToFile(
     listen: true,
     rpcbind: '0.0.0.0',
     rpcallowip: '0.0.0.0/0',
-    rpcport: 8332,
-    port: 8333,
+    // rpcport and port are passed as CLI args in main.ts to support per-network ports;
+    // explicitly remove them here so stale values in raw don't override the CLI args.
+    rpcport: undefined,
+    port: undefined,
     apibind: '0.0.0.0:1235',
     rest: rest ?? false,
     maxconnections: maxconnections ?? undefined,
@@ -372,6 +386,7 @@ function formToFile(
     maxmempool: maxmempool ?? undefined,
     minrelaytxfee: minrelaytxfee ?? undefined,
     mempoolexpiry: mempoolexpiry ?? undefined,
+    maxorphantx: maxorphantx ?? undefined,
     blocksizeacceptlimit: blocksizeacceptlimit ?? undefined,
     rpcthreads: rpcthreads ?? undefined,
     'use-thinblocks': true,

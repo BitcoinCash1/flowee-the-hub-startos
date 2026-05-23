@@ -18,6 +18,7 @@ export const mempoolSettings = sdk.Action.withInput(
     maxmempool: true,
     minrelaytxfee: true,
     mempoolexpiry: true,
+    maxorphantx: true,
   }),
 
   async ({ effects }) => floweeConfFile.read().once(),

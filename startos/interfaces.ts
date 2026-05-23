@@ -1,7 +1,12 @@
 import { sdk } from './sdk'
-import { rpcInterfaceId, peerInterfaceId, apiInterfaceId, rpcPort, peerPort, apiPort } from './utils'
+import { rpcInterfaceId, peerInterfaceId, apiInterfaceId, apiPort, networkPorts, Network } from './utils'
+import { storeJson } from './fileModels/store.json'
 
 export const setInterfaces = sdk.setupInterfaces(async ({ effects }) => {
+  const store = await storeJson.read().once()
+  const network: Network = store?.network ?? 'mainnet'
+  const { rpc: rpcPort, peer: peerPort } = networkPorts[network]
+
   const receipts = []
 
   // ── RPC ──────────────────────────────────────────────────────────────────
