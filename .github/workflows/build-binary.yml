@@ -45,3 +45,5 @@ jobs:
           tags: |
             ghcr.io/bitcoincash1/flowee-hub:latest
             ghcr.io/bitcoincash1/flowee-hub:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/BitcoinCash1/flowee-the-hub-startos
