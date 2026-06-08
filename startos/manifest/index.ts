@@ -10,7 +10,7 @@ export const manifest = setupManifest({
   marketingUrl: 'https://flowee.org/',
   donationUrl: null,
   docsUrls: [
-    'https://github.com/BitcoinCash1/flowee-the-hub-startos/blob/master/README.md',
+    'https://github.com/BitcoinCash1/flowee-the-hub-startos/blob/master/instructions.md',
     'https://flowee.org/docs/hub/',
   ],
   description: { short, long },
