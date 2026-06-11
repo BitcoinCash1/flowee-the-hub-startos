@@ -383,6 +383,10 @@ export const main = sdk.setupMain(async ({ effects }: { effects: any }) => {
               const chainTip = tipMatch ? parseInt(tipMatch[1], 10) : null
               if (chainTip && chainTip > 0) {
                 const pct = Math.min(100, Math.floor((indexedBlock / chainTip) * 100))
+                // At 100% the index is done — no need for separate RPC test
+                if (indexedBlock >= chainTip) {
+                  return { message: 'Transaction index ready', result: 'success' as const }
+                }
                 return {
                   message: `Transaction index building — block ${indexedBlock.toLocaleString()}/${chainTip.toLocaleString()} (${pct}%)`,
                   result: 'loading' as const,
