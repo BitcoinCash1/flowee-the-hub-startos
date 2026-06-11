@@ -318,14 +318,64 @@ export const main = sdk.setupMain(async ({ effects }: { effects: any }) => {
       ready: {
         display: 'Transaction Indexer',
         fn: async () => {
+          // Check process is alive
           try {
-            const res = await nodeSub.exec(['pgrep', '-x', 'indexer'])
-            return res.exitCode === 0
-              ? { message: 'Transaction indexer running', result: 'success' }
-              : { message: 'Transaction indexer starting', result: 'starting' }
+            const pg = await nodeSub.exec(['pgrep', '-x', 'indexer'])
+            if (pg.exitCode !== 0) {
+              return { message: 'Transaction indexer not running', result: 'starting' as const }
+            }
           } catch {
-            return { message: 'Transaction indexer starting', result: 'starting' }
+            return { message: 'Transaction indexer starting', result: 'starting' as const }
           }
+
+          // Read last meaningful log line for progress
+          let lastLogLine = ''
+          try {
+            const logRes = await nodeSub.exec([
+              'sh', '-c',
+              `tail -10 /root/.local/share/flowee/indexer/indexer.log 2>/dev/null | grep -v '^[[:space:]]*$' | tail -1 || true`,
+            ])
+            lastLogLine = (logRes.stdout?.toString() ?? '').trim()
+              // strip "HH:MM:SS.mmm  [pid]  " prefix
+              .replace(/^\d+:\d+:\d+\.\d+\s+/, '')
+              .replace(/\[\d+\]\s+/, '')
+              .trim()
+          } catch {}
+
+          // Test if txindex is ready: look up block 1's coinbase transaction
+          try {
+            const hashRes = await rpcCall('getblockhash', 1)
+            const blockHash = hashRes.stdout?.toString().trim()
+            if (blockHash && blockHash.length === 64) {
+              const blockRes = await rpcCall('getblock', blockHash)
+              const blockOut = blockRes.stdout?.toString() ?? ''
+              // Parse first txid from block output (hub-cli returns JSON)
+              const txMatch = blockOut.match(/"tx"\s*:\s*\[\s*"([a-f0-9]{64})"/i)
+                            ?? blockOut.match(/([a-f0-9]{64})/)
+              const coinbaseTxid = txMatch?.[1]
+              if (coinbaseTxid) {
+                const txRes = await rpcCall('getrawtransaction', coinbaseTxid)
+                const txOut = txRes.stdout?.toString() ?? ''
+                // If no error and got hex data → txindex is ready
+                if (txRes.exitCode === 0 && txOut.length > 10 && !txOut.includes('error')) {
+                  return { message: 'Transaction index ready', result: 'success' as const }
+                }
+              }
+            }
+          } catch {}
+
+          // Not ready — show progress from log if available
+          const lower = lastLogLine.toLowerCase()
+          if (lower.includes('up-to-date') || lower.includes('fully indexed') || lower.includes('complete')) {
+            return { message: 'Transaction index ready', result: 'success' as const }
+          }
+          if (lastLogLine) {
+            return {
+              message: `Transaction index building — ${lastLogLine.substring(0, 80)}`,
+              result: 'loading' as const,
+            }
+          }
+          return { message: 'Transaction index building...', result: 'loading' as const }
         },
       },
       requires: ['sync-progress'],
