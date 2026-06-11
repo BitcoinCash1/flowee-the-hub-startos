@@ -19,6 +19,7 @@ export const main = sdk.setupMain(async ({ effects }: { effects: any }) => {
   const network: Network = store?.network ?? 'mainnet'
   const { rpc: rpcPort, peer: peerPort } = networkPorts[network]
   const netFlag = networkFlag[network]
+  const netLabel = network === 'testnet' ? 'Testnet3' : network.charAt(0).toUpperCase() + network.slice(1)
 
   console.log('Starting Flowee the Hub!')
 
@@ -89,7 +90,7 @@ export const main = sdk.setupMain(async ({ effects }: { effects: any }) => {
     const minSyncedProgress = 0.9999
 
     if (info.initialblockdownload) {
-      return { message: `Syncing blocks...${pct}%`, result: 'loading' as const }
+      return { message: `Syncing blocks... ${pct}% (${netLabel})`, result: 'loading' as const }
     }
 
     // Flowee can occasionally report initialblockdownload=false before any meaningful chain state is present.
@@ -99,13 +100,13 @@ export const main = sdk.setupMain(async ({ effects }: { effects: any }) => {
 
     if (headerLag > 2 || info.verificationprogress < minSyncedProgress) {
       return {
-        message: `Syncing blocks...${pct}% (${info.blocks}/${info.headers})`,
+        message: `Syncing blocks... ${pct}% (${info.blocks}/${info.headers}) (${netLabel})`,
         result: 'loading' as const,
       }
     }
 
     return {
-      message: `Synced — block ${info.blocks}`,
+      message: `Synced — block ${info.blocks} (${netLabel})`,
       result: 'success' as const,
     }
   }
