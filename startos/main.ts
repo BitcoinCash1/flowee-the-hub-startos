@@ -328,18 +328,30 @@ export const main = sdk.setupMain(async ({ effects }: { effects: any }) => {
             return { message: 'Transaction indexer starting', result: 'starting' as const }
           }
 
-          // Read last meaningful log line for progress
-          let lastLogLine = ''
+          // Read last meaningful log line for progress.
+          // Flowee log format: "HH:MM:SS [pid] category] message" on one line,
+          // then "    .mmm [pid]   actual message" on the next (milliseconds continuation).
+          let indexedBlock: number | null = null
           try {
             const logRes = await nodeSub.exec([
               'sh', '-c',
               `tail -10 /root/.local/share/flowee/indexer/indexer.log 2>/dev/null | grep -v '^[[:space:]]*$' | tail -1 || true`,
             ])
-            lastLogLine = (logRes.stdout?.toString() ?? '').trim()
-              // strip "HH:MM:SS.mmm  [pid]  " prefix
-              .replace(/^\d+:\d+:\d+\.\d+\s+/, '')
-              .replace(/\[\d+\]\s+/, '')
+            const raw = (logRes.stdout?.toString() ?? '').trim()
+            // Strip all prefix variants: full timestamp, .mmm continuation, [pid], category]
+            const msg = raw
+              .replace(/^\d+:\d+:\d+\s+/, '')   // HH:MM:SS
+              .replace(/^\s*\.\d+\s+/, '')        // .mmm continuation
+              .replace(/\[\d+\]\s+/g, '')         // [pid]
+              .replace(/\w+\]\s+/, '')             // category]
               .trim()
+            // Extract block number from "Processing block XXXXXX"
+            const m = msg.match(/block\s+(\d+)/i)
+            if (m) indexedBlock = parseInt(m[1], 10)
+            const lower = msg.toLowerCase()
+            if (lower.includes('up-to-date') || lower.includes('fully indexed') || lower.includes('complete')) {
+              return { message: 'Transaction index ready', result: 'success' as const }
+            }
           } catch {}
 
           // Test if txindex is ready: look up block 1's coinbase transaction
@@ -349,14 +361,12 @@ export const main = sdk.setupMain(async ({ effects }: { effects: any }) => {
             if (blockHash && blockHash.length === 64) {
               const blockRes = await rpcCall('getblock', blockHash)
               const blockOut = blockRes.stdout?.toString() ?? ''
-              // Parse first txid from block output (hub-cli returns JSON)
               const txMatch = blockOut.match(/"tx"\s*:\s*\[\s*"([a-f0-9]{64})"/i)
                             ?? blockOut.match(/([a-f0-9]{64})/)
               const coinbaseTxid = txMatch?.[1]
               if (coinbaseTxid) {
                 const txRes = await rpcCall('getrawtransaction', coinbaseTxid)
                 const txOut = txRes.stdout?.toString() ?? ''
-                // If no error and got hex data → txindex is ready
                 if (txRes.exitCode === 0 && txOut.length > 10 && !txOut.includes('error')) {
                   return { message: 'Transaction index ready', result: 'success' as const }
                 }
@@ -364,14 +374,23 @@ export const main = sdk.setupMain(async ({ effects }: { effects: any }) => {
             }
           } catch {}
 
-          // Not ready — show progress from log if available
-          const lower = lastLogLine.toLowerCase()
-          if (lower.includes('up-to-date') || lower.includes('fully indexed') || lower.includes('complete')) {
-            return { message: 'Transaction index ready', result: 'success' as const }
-          }
-          if (lastLogLine) {
+          // Build progress message with percentage if we have a block number
+          if (indexedBlock !== null) {
+            try {
+              const infoRes = await rpcCall('getblockchaininfo')
+              const infoOut = infoRes.stdout?.toString() ?? ''
+              const tipMatch = infoOut.match(/"blocks"\s*:\s*(\d+)/)
+              const chainTip = tipMatch ? parseInt(tipMatch[1], 10) : null
+              if (chainTip && chainTip > 0) {
+                const pct = Math.min(100, Math.floor((indexedBlock / chainTip) * 100))
+                return {
+                  message: `Transaction index building — block ${indexedBlock.toLocaleString()}/${chainTip.toLocaleString()} (${pct}%)`,
+                  result: 'loading' as const,
+                }
+              }
+            } catch {}
             return {
-              message: `Transaction index building — ${lastLogLine.substring(0, 80)}`,
+              message: `Transaction index building — block ${indexedBlock.toLocaleString()}`,
               result: 'loading' as const,
             }
           }
