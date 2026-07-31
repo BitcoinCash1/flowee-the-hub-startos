@@ -1,115 +1,112 @@
-import { sdk } from './sdk'
-import { rootDir, networkPorts, networkFlag, Network, GetBlockchainInfo, GetPeerInfo } from './utils'
+import { socksHostId, socksPort } from 'tor-startos/startos/utils'
 import { floweeConfFile } from './fileModels/flowee.conf'
 import { storeJson } from './fileModels/store.json'
-import { mainMounts } from './mounts'
+import { i18n } from './i18n'
+import { sdk } from './sdk'
+import {
+  apiPort,
+  GetBlockchainInfo,
+  GetPeerInfo,
+  hubCliArgs,
+  mainMounts,
+  networkDir,
+  networkFlag,
+  peerPort,
+  rootDir,
+  rpcPort,
+} from './utils'
 
-export { mainMounts }
+/**
+ * Where `FloweeServiceApplication` puts the indexer's log — Qt's
+ * `AppDataLocation` for organization "flowee", application "indexer".
+ */
+const indexerLog = '/root/.local/share/flowee/indexer/indexer.log'
 
-export const main = sdk.setupMain(async ({ effects }: { effects: any }) => {
+export const main = sdk.setupMain(async ({ effects }) => {
   /**
    * ======================== Setup ========================
    */
+  console.info(i18n('Starting Flowee the Hub!'))
 
-  // Read flowee.conf (watch for changes — restarts on change)
+  // Watched, so changing any of these restarts the node with new arguments.
+  // Deliberately narrow: `reindex` and `fullySynced` are written from inside
+  // this function, and watching them would restart the service in a loop.
+  const settings = await storeJson
+    .read((s) => ({
+      network: s.network,
+      torProxyAll: s.torProxyAll,
+      torIsolation: s.torIsolation,
+    }))
+    .const(effects)
+  if (!settings) throw new Error('No store')
+  const { network, torProxyAll, torIsolation } = settings
+
+  const flags = await storeJson
+    .read((s) => ({ reindex: s.reindex, fullySynced: s.fullySynced }))
+    .once()
+  if (!flags) throw new Error('No store')
+
   const conf = await floweeConfFile.read().const(effects)
+  if (!conf) throw new Error('No flowee.conf')
 
-  // Read credentials and network from store
-  const store = await storeJson.read().once()
-  const network: Network = store?.network ?? 'mainnet'
-  const { rpc: rpcPort, peer: peerPort } = networkPorts[network]
   const netFlag = networkFlag[network]
-  const netLabel = network === 'testnet' ? 'Testnet3' : network.charAt(0).toUpperCase() + network.slice(1)
 
-  console.log('Starting Flowee the Hub!')
+  if (flags.reindex) await storeJson.merge(effects, { reindex: false })
 
-  // Read and clear reindex flag
-  const reindex = store?.reindex ?? false
-  if (reindex) {
-    await storeJson.merge(effects, { reindex: false })
-  }
+  // Tor SOCKS over the bridge. With the 9050 fallback the address is stable
+  // across tor install/update/uninstall, so this .const() does not restart the
+  // node; an absent tor is just a refused connection.
+  const torSocks = await sdk.host
+    .getBridgeAddress(effects, {
+      packageId: 'tor',
+      hostId: socksHostId,
+      internalPort: socksPort,
+      fallbackPort: socksPort,
+    })
+    .const()
 
-  const torEnabled = store?.torEnabled ?? true
-  const torIsolation = store?.torIsolation ?? true
+  // Tracked dynamically for the health check, so tor coming and going does not
+  // restart the node.
+  let torInstalled = false
+  let torRunning = false
+  sdk.getStatus(effects, { packageId: 'tor' }).onChange((status) => {
+    torInstalled = status !== null
+    torRunning = status?.desired.main === 'running'
+    return { cancel: false }
+  })
 
-  const onlynetList: string[] = ((conf?.onlynet as string[] | undefined) ?? []).filter(Boolean)
-  const onlynetActive = onlynetList.length > 0
-  const onionOnly = onlynetActive && onlynetList.every((n) => n === 'onion')
-  const externalip: string[] = ((conf?.externalip as string[] | undefined) ?? []).filter(Boolean)
-
-  // Get Tor container IP (triggers restart if it changes)
-  const torIp = torEnabled
-    ? await sdk.getContainerIp(effects, { packageId: 'tor' }).const()
-    : null
-
-  // ── Build command args ─────
-  const daemonArgs: string[] = [
+  const hubArgs = [
     `-conf=${rootDir}/flowee.conf`,
     `-datadir=${rootDir}`,
     `-rpcport=${rpcPort}`,
     `-port=${peerPort}`,
-    `-apibind=0.0.0.0:1235`,
-    `-use-thinblocks`,
-    `-min-thin-peers=2`,
+    `-proxyrandomize=${torIsolation ? 1 : 0}`,
+    ...(torProxyAll ? [`-proxy=${torSocks}`] : []),
     ...(netFlag ? [netFlag] : []),
-    ...(reindex ? ['-reindex'] : []),
+    ...(flags.reindex ? ['-reindex'] : []),
   ]
 
-  if (torIp) {
-    daemonArgs.push(`-proxy=${torIp}:9050`)
-    daemonArgs.push(`-onion=${torIp}:9050`)
-    daemonArgs.push(`-listenonion`)
-    if (torIsolation) {
-      daemonArgs.push(`-proxyrandomize=1`)
-    }
-  }
-
-  const nodeSub = await sdk.SubContainer.of(
+  const nodeSub = sdk.SubContainer.of(
     effects,
     { imageId: 'flowee' },
     mainMounts,
-    'node-sub',
+    'flowee-sub',
   )
 
-  // Helper: run JSON-RPC call via hub-cli (reads rpcuser/rpcpassword from flowee.conf)
-  async function rpcCall(method: string, ...params: unknown[]) {
-    return nodeSub.exec([
-      'hub-cli',
-      `-conf=${rootDir}/flowee.conf`,
-      `-rpcconnect=127.0.0.1`,
-      `-rpcport=${rpcPort}`,
-      `-datadir=${rootDir}`,
-      method,
-      ...params.map(String),
-    ])
-  }
+  const rpcCall = (method: string, ...params: string[]) =>
+    nodeSub.exec([...hubCliArgs(network), method, ...params])
 
-  function getSyncHealth(info: GetBlockchainInfo) {
-    const pct = (info.verificationprogress * 100).toFixed(2)
-    const headerLag = Math.max(0, info.headers - info.blocks)
-    const minSyncedProgress = 0.9999
-
-    if (info.initialblockdownload) {
-      return { message: `Syncing blocks... ${pct}% (${netLabel})`, result: 'loading' as const }
-    }
-
-    // Flowee can occasionally report initialblockdownload=false before any meaningful chain state is present.
-    if (info.blocks <= 0 || info.headers <= 0) {
-      return { message: 'Waiting for first synced block', result: 'loading' as const }
-    }
-
-    if (headerLag > 2 || info.verificationprogress < minSyncedProgress) {
-      return {
-        message: `Syncing blocks... ${pct}% (${info.blocks}/${info.headers}) (${netLabel})`,
-        result: 'loading' as const,
-      }
-    }
-
-    return {
-      message: `Synced — block ${info.blocks} (${netLabel})`,
-      result: 'success' as const,
+  const getBlockchainInfo = async (): Promise<GetBlockchainInfo | null> => {
+    const res = await rpcCall('getblockchaininfo')
+    if (res.exitCode !== 0) return null
+    try {
+      return JSON.parse(res.stdout.toString())
+    } catch {
+      return null
     }
   }
+
+  const externalip = conf.raw?.externalip ?? []
 
   /**
    * ======================== Daemons ========================
@@ -117,103 +114,80 @@ export const main = sdk.setupMain(async ({ effects }: { effects: any }) => {
 
   return sdk.Daemons.of(effects)
     .addOneshot('nocow', {
-      subcontainer: null,
-      exec: {
-        fn: async () => {
-          try {
-            const mkdirRes = await nodeSub.exec(['mkdir', '-p', rootDir])
-            if (mkdirRes.exitCode !== 0) {
-              console.warn(`nocow: mkdir failed for ${rootDir}; continuing without chattr`)
-              return null
-            }
-
-            const chattrRes = await nodeSub.exec(['chattr', '-R', '+C', rootDir])
-            if (chattrRes.exitCode !== 0) {
-              console.warn(`nocow: chattr not applied for ${rootDir}; continuing startup`)
-            }
-            // Strip any legacy onion `externalip=` lines from flowee.conf.
-            // Flowee's hub cannot resolve onion hostnames at argument-parse
-            // time; onion reachability is handled via -listenonion through
-            // the Tor proxy instead.
-            await nodeSub.exec([
-              'sh', '-c',
-              `test -f ${rootDir}/flowee.conf && sed -i '/^externalip=.*\\.onion/d' ${rootDir}/flowee.conf || true`,
-            ])
-          } catch (err) {
-            console.warn('nocow: unable to set NoCOW attributes; continuing startup', err)
-          }
-          return null
-        },
-      },
-      requires: [],
-    })
-    .addOneshot('sanitize-config', {
       subcontainer: nodeSub,
       exec: {
-        fn: async () => {
-          const res = await nodeSub.exec([
-            'sh',
-            '-lc',
-            `if [ -f ${rootDir}/flowee.conf ]; then sed -i '/^apilisten=/d' ${rootDir}/flowee.conf; fi`,
-          ])
-          if (res.exitCode !== 0) {
-            console.warn('sanitize-config: failed to remove deprecated apilisten option')
-          }
-          return null
-        },
+        // Blockchain files are written sequentially and rewritten in place,
+        // which fragments badly under btrfs copy-on-write. chattr fails
+        // harmlessly on filesystems that have no such attribute.
+        command: ['sh', '-c', `chattr -R +C ${rootDir} 2>/dev/null || true`],
       },
-      requires: ['nocow'],
+      requires: [],
     })
     .addDaemon('primary', {
       subcontainer: nodeSub,
       exec: {
-        command: ['hub', ...daemonArgs],
+        command: ['hub', ...hubArgs],
         sigtermTimeout: 300_000,
       },
       ready: {
         display: 'RPC',
-        fn: async () => {
-          try {
-            const res = await rpcCall('getblockchaininfo')
-            return res.exitCode === 0
-              ? { message: 'The Flowee RPC Interface is ready', result: 'success' }
-              : { message: 'The Flowee RPC Interface is not ready', result: 'starting' }
-          } catch {
-            return { message: 'The Flowee RPC Interface is not ready', result: 'starting' }
-          }
-        },
+        fn: async () =>
+          (await getBlockchainInfo())
+            ? {
+                message: i18n('The Flowee RPC interface is ready'),
+                result: 'success',
+              }
+            : {
+                message: i18n('The Flowee RPC interface is not ready'),
+                result: 'starting',
+              },
       },
-      requires: ['sanitize-config'],
+      requires: ['nocow'],
     })
     .addHealthCheck('flowee-api', {
       ready: {
-        display: 'Flowee API',
-        fn: async () => {
-          try {
-            // Probe the native Flowee protobuf API port (apibind=0.0.0.0:1235)
-            const res = await nodeSub.exec(['nc', '-z', '127.0.0.1', '1235'])
-            return res.exitCode === 0
-              ? { message: 'Flowee Hub API is listening on port 1235', result: 'success' }
-              : { message: 'Flowee Hub API not yet ready', result: 'loading' }
-          } catch {
-            return { message: 'Flowee Hub API not yet ready', result: 'loading' }
-          }
-        },
+        display: i18n('Flowee API'),
+        fn: () =>
+          sdk.healthCheck.checkPortListening(effects, apiPort, {
+            successMessage: i18n('The Flowee API is accepting connections'),
+            errorMessage: i18n('The Flowee API is not accepting connections'),
+          }),
       },
       requires: ['primary'],
     })
     .addHealthCheck('sync-progress', {
       ready: {
-        display: 'Blockchain Sync',
+        display: i18n('Blockchain Sync'),
+        trigger: sdk.trigger.statusTrigger(30_000, {
+          starting: 5_000,
+          failure: 5_000,
+        }),
         fn: async () => {
-          try {
-            const res = await rpcCall('getblockchaininfo')
-            if (res.exitCode !== 0) return { message: 'Waiting for sync info', result: 'loading' }
-            const stdout = res.stdout.toString()
-            const info: GetBlockchainInfo = JSON.parse(stdout)
-            return getSyncHealth(info)
-          } catch {
-            return { message: 'Waiting for sync info', result: 'loading' }
+          const info = await getBlockchainInfo()
+          if (!info)
+            return { message: i18n('Waiting for the node'), result: 'starting' }
+
+          const percentage = (info.verificationprogress * 100).toFixed(2)
+
+          // The hub reports initialblockdownload purely as "the header chain is
+          // more than 1000 blocks ahead", so it clears well before the last
+          // blocks land — and before any block has landed at all on a fresh
+          // datadir. Hold "syncing" until the chain has actually caught up.
+          if (
+            info.initialblockdownload ||
+            info.blocks <= 0 ||
+            info.headers - info.blocks > 2 ||
+            info.verificationprogress < 0.9999
+          ) {
+            return {
+              message: i18n('Syncing blocks...${percentage}%', { percentage }),
+              result: 'loading',
+            }
+          }
+
+          return {
+            message: i18n('Flowee is fully synced'),
+            result: 'success',
           }
         },
       },
@@ -223,9 +197,16 @@ export const main = sdk.setupMain(async ({ effects }: { effects: any }) => {
       subcontainer: null,
       exec: {
         fn: async () => {
-          const currentStore = await storeJson.read().once()
-          if (!currentStore?.fullySynced) {
+          if (!flags.fullySynced) {
+            await sdk.notification.create(effects, {
+              level: 'success',
+              title: i18n('Sync Complete'),
+              message: i18n('The blockchain is fully synced.'),
+            })
             await storeJson.merge(effects, { fullySynced: true })
+            // Keep the in-memory copy honest so a sync-progress dip and
+            // recovery within this run does not re-fire the notification.
+            flags.fullySynced = true
           }
           return null
         },
@@ -234,20 +215,29 @@ export const main = sdk.setupMain(async ({ effects }: { effects: any }) => {
     })
     .addHealthCheck('peer-connections', {
       ready: {
-        display: 'Peer Connections',
+        display: i18n('Peer Connections'),
         fn: async () => {
+          const res = await rpcCall('getpeerinfo')
+          if (res.exitCode !== 0)
+            return { message: i18n('Waiting for the node'), result: 'starting' }
+
+          let peers: GetPeerInfo
           try {
-            const res = await rpcCall('getpeerinfo')
-            if (res.exitCode !== 0) return { message: 'Unable to query peers', result: 'loading' }
-            const stdout = res.stdout.toString()
-            const peers: GetPeerInfo = JSON.parse(stdout)
-            const count = peers.length
-            if (count === 0) return { message: 'No peers connected — node may be starting up or isolated', result: 'loading' }
-            if (count < 3) return { message: `Only ${count} peer(s) connected — network connectivity may be limited`, result: 'loading' }
-            const inbound = peers.filter((p) => p.inbound).length
-            return { message: `${count} peers (${count - inbound} outbound, ${inbound} inbound)`, result: 'success' }
+            peers = JSON.parse(res.stdout.toString())
           } catch {
-            return { message: 'Unable to query peers', result: 'loading' }
+            return { message: i18n('Waiting for the node'), result: 'starting' }
+          }
+
+          if (peers.length === 0)
+            return { message: i18n('No peers connected'), result: 'loading' }
+
+          const inbound = peers.filter((p) => p.inbound).length
+          return {
+            message: i18n('${outbound} outbound, ${inbound} inbound', {
+              outbound: String(peers.length - inbound),
+              inbound: String(inbound),
+            }),
+            result: peers.length < 3 ? 'loading' : 'success',
           }
         },
       },
@@ -256,137 +246,106 @@ export const main = sdk.setupMain(async ({ effects }: { effects: any }) => {
     .addHealthCheck('tor', {
       ready: {
         display: 'Tor',
-        fn: async () => {
-          if (!torEnabled) {
-            return { message: 'Tor routing is disabled in config', result: 'disabled' }
-          }
-          if (!torIp) {
-            return { message: 'Tor package not reachable', result: 'failure' }
-          }
-          if (onlynetActive && !onlynetList.includes('onion')) {
-            return { message: 'Excluded by onlynet', result: 'disabled' }
-          }
-          const hasOnion = externalip.some((ip) => ip.includes('.onion'))
-          const base = `Routing through Tor (${torIp})${torIsolation ? ' with stream isolation' : ''}`
+        fn: () => {
+          if (!torProxyAll)
+            return {
+              result: 'disabled',
+              message: i18n('Peer traffic is not routed through Tor'),
+            }
+          if (!torInstalled)
+            return { result: 'failure', message: i18n('Tor is not installed') }
+          if (!torRunning)
+            return { result: 'failure', message: i18n('Tor is not running') }
           return {
-            message: hasOnion
-              ? `${base} — inbound and outbound connections`
-              : `${base} — outbound only. Add an onion address to enable inbound.`,
             result: 'success',
+            message: torIsolation
+              ? i18n('Peer traffic is routed through Tor, one circuit per peer')
+              : i18n('Peer traffic is routed through Tor'),
           }
         },
-      },
-      requires: ['primary'],
-    })
-    .addHealthCheck('i2p', {
-      ready: {
-        display: 'I2P',
-        fn: () => ({
-          result: 'disabled' as const,
-          message: 'I2P support is not implemented yet.',
-        }),
       },
       requires: [],
     })
     .addHealthCheck('clearnet', {
       ready: {
-        display: 'Clearnet',
-        fn: async () => {
-          if (onionOnly) {
-            return { message: 'Clearnet disabled — onlynet=onion is set', result: 'disabled' }
-          }
-          if (onlynetActive && !onlynetList.includes('ipv4') && !onlynetList.includes('ipv6')) {
-            return { message: 'Excluded by onlynet', result: 'disabled' }
-          }
-          const hasClearnet = externalip.some((ip) => ip && !ip.includes('.onion'))
-          return {
-            message: hasClearnet
-              ? 'Inbound and outbound connections'
-              : 'Outbound only. Publish an IP address to enable inbound.',
-            result: 'success',
-          }
-        },
+        display: i18n('Clearnet'),
+        fn: () => ({
+          result: 'success',
+          message: externalip.some((ip) => !!ip)
+            ? i18n('Inbound and outbound connections')
+            : i18n(
+                'Outbound only. Advertise a public address to enable inbound.',
+              ),
+        }),
       },
-      requires: ['primary'],
+      requires: [],
     })
     .addDaemon('indexer', {
       subcontainer: nodeSub,
       exec: {
-        command: ['indexer', `-datadir=${rootDir}`],
+        // Two dashes: the indexer parses its arguments with Qt, which reads
+        // `-datadir=X` as the short option `-d` with the value `atadir=X` and
+        // silently indexes into a relative path outside the volume. It also has
+        // no notion of networks, so it is pointed at the Hub's directory for the
+        // active one rather than replaying every chain into one index.
+        command: ['indexer', `--datadir=${networkDir(network)}`],
         sigtermTimeout: 30_000,
       },
       ready: {
-        display: 'Transaction Indexer',
+        display: i18n('Transaction Indexer'),
+        trigger: sdk.trigger.statusTrigger(30_000, {
+          starting: 5_000,
+          failure: 5_000,
+        }),
         fn: async () => {
-          // Check process is alive
-          try {
-            const pg = await nodeSub.exec(['pgrep', '-x', 'indexer'])
-            if (pg.exitCode !== 0) {
-              return { message: 'Transaction indexer not running', result: 'starting' as const }
-            }
-          } catch {
-            return { message: 'Transaction indexer starting', result: 'starting' as const }
+          // The indexer reports progress only to its log file: it logs the
+          // height it resumed from on connecting to the hub, then each block it
+          // replays.
+          const res = await nodeSub.exec([
+            'sh',
+            '-c',
+            `tail -50 ${indexerLog} 2>/dev/null || true`,
+          ])
+          const lines = res.stdout.toString().split('\n')
+
+          let indexed: number | null = null
+          for (const line of lines) {
+            const progress = line.match(/Processing block\s+(\d+)/i)
+            if (progress) indexed = Number(progress[1])
+            const resumed = line.match(/TxDB:\s*(\d+)/i)
+            if (resumed && indexed === null) indexed = Number(resumed[1])
           }
 
-          // Scan the last 10 log lines for progress and completion signals.
-          let indexedBlock: number | null = null
-          let txdbHeight: number | null = null
-          try {
-            const logRes = await nodeSub.exec([
-              'sh', '-c',
-              `tail -10 /root/.local/share/flowee/indexer/indexer.log 2>/dev/null || true`,
-            ])
-            const lines = (logRes.stdout?.toString() ?? '').split('\n').filter(l => l.trim())
-            for (const raw of lines) {
-              const msg = raw
-                .replace(/^\d+:\d+:\d+\s+/, '')   // HH:MM:SS
-                .replace(/^\s*\.\d+\s+/, '')        // .mmm continuation
-                .replace(/\[\d+\]\s+/g, '')         // [pid]
-                .replace(/\w+\]\s+/, '')             // category]
-                .trim()
-              // "Processing block N" — active replay progress
-              const blockM = msg.match(/Processing block\s+(\d+)/i)
-              if (blockM) indexedBlock = parseInt(blockM[1], 10)
-              // "TxDB: N" in startup line — already-indexed height from previous run
-              const txdbM = msg.match(/TxDB:\s*(\d+)/i)
-              if (txdbM) txdbHeight = parseInt(txdbM[1], 10)
-              // "Reached top of chain" — definitive completion signal
-              const lower = msg.toLowerCase()
-              if (lower.includes('reached top') || lower.includes('up-to-date') || lower.includes('fully indexed')) {
-                return { message: 'Transaction index ready', result: 'success' as const }
-              }
-            }
-          } catch {}
-
-          // Use the best available height: active replay beats startup checkpoint
-          const bestHeight = indexedBlock ?? txdbHeight
-
-          // Build progress/ready message using best available height
-          if (bestHeight !== null) {
-            try {
-              const infoRes = await rpcCall('getblockchaininfo')
-              const infoOut = infoRes.stdout?.toString() ?? ''
-              const tipMatch = infoOut.match(/"blocks"\s*:\s*(\d+)/)
-              const chainTip = tipMatch ? parseInt(tipMatch[1], 10) : null
-              if (chainTip && chainTip > 0) {
-                const pct = Math.min(100, Math.floor((bestHeight / chainTip) * 100))
-                if (pct >= 99) {
-                  return { message: 'Transaction index ready', result: 'success' as const }
-                }
-                return {
-                  message: `Transaction index building — block ${bestHeight.toLocaleString()}/${chainTip.toLocaleString()} (${pct}%)`,
-                  result: 'loading' as const,
-                }
-              }
-            } catch {}
+          if (indexed === null)
             return {
-              message: `Transaction index building — block ${bestHeight.toLocaleString()}`,
-              result: 'loading' as const,
+              message: i18n('Waiting for the transaction indexer'),
+              result: 'starting',
             }
+
+          const tip = (await getBlockchainInfo())?.blocks
+          if (!tip)
+            return {
+              message: i18n('Transaction index at block ${indexed}', {
+                indexed: indexed.toLocaleString(),
+              }),
+              result: 'loading',
+            }
+
+          if (indexed >= tip)
+            return {
+              message: i18n('Transaction index is up to date'),
+              result: 'success',
+            }
+
+          return {
+            message: i18n(
+              'Building the transaction index — block ${indexed} of ${tip}',
+              { indexed: indexed.toLocaleString(), tip: tip.toLocaleString() },
+            ),
+            result: 'loading',
           }
-          return { message: 'Transaction index building...', result: 'loading' as const }
         },
       },
-      requires: ['sync-progress'],
+      requires: ['primary'],
     })
 })

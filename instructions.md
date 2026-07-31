@@ -1,111 +1,88 @@
 # Flowee the Hub
 
-Flowee the Hub is a Bitcoin Cash full node and indexer written in C++. It begins its
-Initial Block Download — fetching and verifying the entire BCH chain — the moment it
-launches. This page covers what is specific to running it on StartOS.
+## Documentation
+
+- [Flowee the Hub documentation](https://flowee.org/docs/hub/) — the upstream guide to running
+  and configuring the Hub.
+- [Flowee the Hub source](https://codeberg.org/Flowee/thehub) — the upstream repository, including
+  the full `flowee.conf` reference.
 
 ## What you get on StartOS
 
 - A **Bitcoin Cash full node** that validates and relays blocks and transactions.
-- A **JSON-RPC interface** (port adjusts per network) that other StartOS services
-  and external wallets connect to.
-- A built-in **address and UTXO indexer** for full address history queries.
-- **P2P** for peer connections and relay.
-- **Tor** support — when Tor is installed, Flowee routes outbound peer connections
-  through Tor.
-- Multiple networks: **mainnet**, **testnet** (testnet3), **testnet4**, **scalenet**,
-  **chipnet**, and **regtest**.
-- Compatible with dependent StartOS services: Fulcrum BCH, BCH Explorer, ASICSeer
-  pool, and EloPool.
+- A **JSON-RPC interface** that wallets, explorers and other StartOS services connect to.
+- A **transaction index**, built by a second process that runs alongside the node, for looking up
+  transactions and addresses without scanning the chain.
+- **Flowee's own binary interface**, which Flowee-native clients use instead of JSON-RPC.
+- A choice of network: mainnet, Testnet3, Testnet4, Scalenet, Chipnet or Regtest.
 
-## Getting started
+## Getting set up
 
-There is no setup wizard — Flowee begins syncing on first launch.
+There is nothing to configure before the node is useful.
 
-Open the **Dashboard** to watch sync progress. A full Initial Block Download takes
-anywhere from several hours to a few days depending on your hardware, disk, and
-network speed.
+1. Start Flowee. It begins downloading the chain immediately.
+2. Watch **Blockchain Sync** on the Dashboard. A full mainnet sync takes hours to days, depending
+   on your disk and connection.
+3. **Transaction Indexer** builds at the same time and finishes shortly after the sync does.
 
-Services that depend on Flowee — Fulcrum BCH, BCH Explorer, mining pools — install,
-connect, and configure themselves automatically once Flowee is synced.
+You will get a notification when the chain is fully synced.
 
-## RPC access
+## Using Flowee
 
-The JSON-RPC API listens on port **8332** (mainnet). Dependent StartOS services
-connect and configure themselves automatically.
+### Connecting a wallet or explorer
 
-For an external wallet or app, run **Actions → View Credentials** to get the
-auto-generated username, password, and port for your selected network.
+Run **Generate RPC Credential**, give it a username, and Flowee returns the password. **Save it
+before you close the result** — only a hash is kept, so it cannot be shown again. Restart Flowee
+for the new credential to work, then point your wallet at the RPC interface with that username and
+password.
 
-## Configuration
+**Delete RPC Credentials** revokes credentials you no longer want; the change takes effect at the
+next restart.
 
-Settings are available under **Config**:
+Other StartOS services that depend on Flowee set their own credentials up automatically.
 
-- **Network** — mainnet (default), testnet (testnet3), testnet4, scalenet, chipnet,
-  or regtest. Changing network switches the data directory and port set. The node
-  restarts automatically.
-- **Transaction Index** — enable `txindex` for arbitrary txid lookups. Required by
-  BCH Explorer and services that need full tx history.
-- **Mempool Settings** — mempool size, minimum relay fee, and relay policy.
-- **RPC Peers** — add trusted external RPC peers.
-- **Tor** — enable Tor for outbound peer connections.
+### Choosing a network
 
-## Ports
+**Network** switches between mainnet and the test networks. Flowee restarts and syncs the new
+network from the beginning; the data for the network you left is kept, so switching back resumes
+where it stopped. The ports stay the same across networks, so anything already connected to Flowee
+keeps working — it will just be looking at a different chain.
 
-| Network  | RPC port | P2P port |
-|----------|----------|----------|
-| mainnet  | 8332     | 8333     |
-| testnet  | 18332    | 18333    |
-| testnet4 | 28342    | 28343    |
-| scalenet | 38332    | 38333    |
-| chipnet  | 48332    | 48333    |
-| regtest  | 18443    | 18444    |
+**Delete Test Network Data** reclaims the disk a test network is using. It will not delete the
+network you are currently on.
 
-Flowee also exposes port **1235** for its Hub protocol (internal indexer access).
+### Privacy and reachability
 
-## Switching networks
+**Peer & Privacy Settings** controls how the node talks to the rest of the network:
 
-Use **Config → Network** to change the active network. The node restarts automatically
-and starts syncing the new network from scratch. Each network uses a separate data
-directory — switching back to mainnet resumes from where mainnet left off.
+- **Route Peer Traffic Through Tor** sends outbound connections through Tor, so peers see a Tor
+  exit node rather than your IP address. Install the Tor service first. It slows the initial sync
+  down considerably, so it is usually worth turning on only once the chain has caught up.
+- **Advertise Public Address** tells peers the public addresses StartOS has given the peer
+  interface, so they can connect to you. Leave it off if you only want outbound connections.
+- **Allowed Networks** limits the node to IPv4 or IPv6.
 
-## Tor networking
+### Other settings
 
-By default Flowee connects to peers over clearnet. When Tor is installed and **Tor**
-is enabled in Config, Flowee routes outbound peer connections through Tor for enhanced
-privacy.
+- **Node Settings** — the largest block the node will accept, and an optional read-only REST API.
+  The REST API has no password, so only enable it if you are comfortable with anyone who can reach
+  the RPC interface reading blockchain data.
+- **Mempool Settings** — how much memory unconfirmed transactions may use, how long they are kept,
+  and the minimum fee to relay them.
 
-For inbound onion connectivity: open **Interfaces → Peer Interface → Add Onion Service**
-in StartOS. This creates a hidden service at a `.onion` address pointing to Flowee's
-P2P port.
+### Maintenance
 
-## Maintenance actions
-
-- **View Credentials** — display the auto-generated RPC username and password.
-- **Generate Credential** — create an additional named RPC credential.
-- **Delete RPC Credentials** — remove one or all RPC credentials.
-- **Runtime Information** — live connection count, block height, and sync status.
-- **Reindex** — rebuild the address and UTXO index from stored block files.
-- **Delete Transaction Index** — remove the `txindex` database (frees space; disables
-  arbitrary txid lookups until re-enabled and re-indexed).
-- **Delete Peer List** — clear stored peers and force fresh discovery.
-- **Delete Test Network Data** — remove testnet/chipnet/regtest data while preserving
-  mainnet.
-
-## Backups and restore
-
-Flowee's configuration and RPC credentials are included in StartOS backups. The
-blockchain data and address index are **not** backed up — after a restore, Flowee
-re-syncs from the network and rebuilds its index (same time as the initial pass).
+- **Node Info** shows the version, chain, peer count and sync progress at a glance.
+- **Reindex Blockchain** re-verifies every block you already have. Run it if the node reports a
+  corrupt database. It takes hours.
+- **Delete Transaction Index** discards the index and rebuilds it on the next start.
+- **Delete Peer List** makes the node forget the peers it knows and find new ones.
 
 ## Limitations
 
-- IBD must complete before dependent services (Fulcrum, pools) can start.
-- The Flowee address index is not included in backups. After a restore, re-indexing
-  takes as long as the initial index pass.
-- Pruning is not currently supported.
-
-## Support
-
-- Package: <https://github.com/BitcoinCash1/flowee-the-hub-startos>
-- Upstream: <https://codeberg.org/Flowee/thehub>
+- Flowee cannot use modern onion addresses, so it cannot accept inbound connections over Tor and
+  cannot connect to onion peers. Tor is useful here only for hiding your IP address on outbound
+  connections.
+- Flowee always stores the full chain — there is no pruned mode.
+- Backups keep your configuration and credentials but not the chain data or the transaction index.
+  After a restore, Flowee syncs again from the network.

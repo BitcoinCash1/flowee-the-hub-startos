@@ -1,33 +1,41 @@
+import { i18n } from '../i18n'
 import { sdk } from '../sdk'
-import { mainMounts } from '../mounts'
-import { rootDir } from '../utils'
+import { mainMounts, rootDir } from '../utils'
 
 export const deletePeerList = sdk.Action.withoutInput(
   'delete-peer-list',
-  async ({ effects: _effects }) => ({
-    name: 'Delete Peer List',
-    description:
-      'Delete peers.dat to reset the peer address database. The node will rebuild it from DNS seeds on next startup.',
-    warning:
-      'All known peer addresses will be lost. The node will need to rediscover peers on next startup, which may take a few minutes.',
-    allowedStatuses: 'only-stopped' as const,
-    group: 'Maintenance',
-    visibility: 'enabled' as const,
+
+  async () => ({
+    name: i18n('Delete Peer List'),
+    description: i18n(
+      'Forget every peer address the node has learned. It rediscovers peers from DNS seeds on the next start.',
+    ),
+    warning: i18n('Finding peers again can take a few minutes.'),
+    allowedStatuses: 'only-stopped',
+    group: i18n('Maintenance'),
+    visibility: 'enabled',
   }),
+
   async ({ effects }) => {
     await sdk.SubContainer.withTemp(
       effects,
       { imageId: 'flowee' },
       mainMounts,
       'delete-peer-list',
-      async (sub) => {
-        await sub.exec(['rm', '-f', `${rootDir}/peers.dat`])
-      },
+      // Every network keeps its own copy, and the user is deleting the concept
+      // rather than one network's list.
+      (sub) =>
+        sub.exec([
+          'sh',
+          '-c',
+          `rm -f ${rootDir}/peers.dat ${rootDir}/*/peers.dat`,
+        ]),
     )
+
     return {
-      version: '1' as const,
-      title: 'Peer List Deleted',
-      message: 'peers.dat has been removed. The node will rebuild it from DNS seeds on next startup.',
+      version: '1',
+      title: i18n('Peer List Deleted'),
+      message: i18n('Flowee will rediscover peers when it next starts.'),
       result: null,
     }
   },

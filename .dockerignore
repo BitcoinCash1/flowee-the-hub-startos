@@ -1,4 +1,2 @@
-*.s9pk
-node_modules/
-.git/
-javascript/
+.git
+.gitmodules

@@ -1,108 +1,83 @@
-import { sdk } from '../sdk'
 import { storeJson } from '../fileModels/store.json'
-import { mainMounts } from '../mounts'
-import { rootDir, Network } from '../utils'
+import { i18n } from '../i18n'
+import { sdk } from '../sdk'
+import { mainMounts, networkSubdir, rootDir } from '../utils'
 
 const { InputSpec, Value } = sdk
 
-const inputSpec = InputSpec.of({
-  networks: Value.multiselect({
-    name: 'Networks To Delete',
-    description:
-      'Delete all Flowee blockchain data for the selected test networks. Mainnet is intentionally excluded and cannot be selected.',
-    warning:
-      'This permanently deletes all blockchain data for the selected networks. You cannot undo this. Mainnet data is never affected.',
-    default: [],
-    minLength: 0,
-    maxLength: null,
-    values: {
-      testnet:  'Testnet3',
-      testnet4: 'Testnet4',
-      scalenet: 'Scalenet',
-      chipnet:  'Chipnet',
-      regtest:  'Regtest',
-    },
-  }),
-})
-
-const testNetSubdirs: Record<string, string> = {
-  testnet:  'testnet3',
-  testnet4: 'testnet4',
-  scalenet: 'scalenet',
-  chipnet:  'chipnet',
-  regtest:  'regtest',
-}
+const TEST_NETWORKS = {
+  testnet: i18n('Testnet3'),
+  testnet4: i18n('Testnet4'),
+  scalenet: i18n('Scalenet'),
+  chipnet: i18n('Chipnet'),
+  regtest: i18n('Regtest'),
+} as const
 
 export const deleteTestNetworkData = sdk.Action.withInput(
   'delete-test-network-data',
-  async ({ effects: _effects }) => ({
-    name: 'Delete Test Network Data',
-    description:
-      'Delete blockchain data for one or more test networks (Testnet3, Testnet4, Scalenet, Chipnet, Regtest). This frees disk space without touching mainnet.',
-    warning:
-      'All block data and chainstate for the selected networks will be permanently deleted. Mainnet is never affected.',
-    allowedStatuses: 'any' as const,
-    group: 'Maintenance',
-    visibility: 'enabled' as const,
+
+  async () => ({
+    name: i18n('Delete Test Network Data'),
+    description: i18n(
+      'Reclaim the disk a test network is using. Mainnet data is never touched.',
+    ),
+    warning: i18n('The chain data for the networks you pick is deleted.'),
+    allowedStatuses: 'only-stopped',
+    group: i18n('Maintenance'),
+    visibility: 'enabled',
   }),
-  inputSpec,
-  async ({ effects: _effects }) => {
-    const store = await storeJson.read().once()
-    const active: Network = store?.network ?? 'mainnet'
-    const defaults = (['testnet', 'testnet4', 'scalenet', 'chipnet', 'regtest'] as const).filter(
-      (n) => n !== active,
-    )
-    return { networks: defaults }
-  },
+
+  InputSpec.of({
+    networks: Value.multiselect({
+      name: i18n('Networks'),
+      description: i18n('The test networks whose data should be deleted.'),
+      default: [],
+      values: TEST_NETWORKS,
+    }),
+  }),
+
+  async () => ({ networks: [] }),
+
   async ({ effects, input }) => {
-    const networks = (input.networks ?? []).filter(Boolean) as string[]
-    if (networks.length === 0) {
+    if (!input.networks.length) {
       return {
-        version: '1' as const,
-        title: 'Nothing to Delete',
-        message: 'No networks were selected.',
+        version: '1',
+        title: i18n('Nothing Selected'),
+        message: i18n('No data was deleted.'),
         result: null,
       }
     }
-    const store = await storeJson.read().once()
-    const activeNetwork: Network = store?.network ?? 'mainnet'
-    const activeTestNet = activeNetwork !== 'mainnet' ? activeNetwork : null
-    if (activeTestNet && networks.includes(activeTestNet)) {
+
+    const active = await storeJson.read((s) => s.network).once()
+    if (input.networks.some((n) => n === active)) {
       return {
-        version: '1' as const,
-        title: 'Cannot Delete Active Network',
-        message: `Flowee is currently configured for ${activeTestNet}. Switch to a different network before deleting its data.`,
+        version: '1',
+        title: i18n('Cannot Delete The Active Network'),
+        message: i18n(
+          'Flowee is set to ${network}. Switch networks before deleting its data.',
+          { network: active ?? '' },
+        ),
         result: null,
       }
     }
-    const removed: string[] = []
+
     await sdk.SubContainer.withTemp(
       effects,
       { imageId: 'flowee' },
       mainMounts,
-      'delete-test-net-data',
-      async (sub) => {
-        for (const net of networks) {
-          const subdir = testNetSubdirs[net]
-          if (!subdir) continue
-          const dataPath = `${rootDir}/${subdir}`
-          const res = await sub.exec(['rm', '-rf', dataPath])
-          if (res.exitCode === 0) removed.push(dataPath)
-        }
-      },
+      'delete-test-network-data',
+      (sub) =>
+        sub.exec([
+          'rm',
+          '-rf',
+          ...input.networks.map((n) => `${rootDir}/${networkSubdir[n]}`),
+        ]),
     )
-    if (removed.length === 0) {
-      return {
-        version: '1' as const,
-        title: 'Nothing Removed',
-        message: 'The selected network data directories did not exist.',
-        result: null,
-      }
-    }
+
     return {
-      version: '1' as const,
-      title: 'Test Network Data Deleted',
-      message: `Removed: ${removed.join(', ')}. Mainnet data was not touched.`,
+      version: '1',
+      title: i18n('Test Network Data Deleted'),
+      message: i18n('Mainnet data was not touched.'),
       result: null,
     }
   },
