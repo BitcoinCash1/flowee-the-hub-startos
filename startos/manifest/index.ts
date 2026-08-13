@@ -22,17 +22,6 @@ export const manifest = setupManifest({
       emulateMissingAs: 'x86_64',
     },
   },
-  alerts: {
-    install:
-      'Flowee the Hub will begin syncing the full BCH blockchain after installation. Initial sync may take several hours. Note: Flowee uses SPV-level validation — it follows the canonical chain (most PoW) but does not fully validate every transaction. This makes it unsuitable as sole mining node for block creation, but excellent for fast block propagation and relay.',
-    update: null,
-    uninstall:
-      'Uninstalling Flowee the Hub will permanently delete all blockchain data and configuration. Ensure you have a backup before proceeding.',
-    restore:
-      'Restoring Flowee the Hub will overwrite your current configuration. Blockchain data must be re-synced.',
-    start: null,
-    stop: null,
-  },
   dependencies: {
     tor: {
       description:

@@ -3,6 +3,7 @@ export const rootDir = '/data'
 // ── Interface IDs ─────────────────────────────────────────────────────────────
 export const rpcInterfaceId = 'rpc'
 export const peerInterfaceId = 'peer'
+export const peerHostId = 'peer'
 export const apiInterfaceId = 'api'
 
 // ── Network types ─────────────────────────────────────────────────────────────
