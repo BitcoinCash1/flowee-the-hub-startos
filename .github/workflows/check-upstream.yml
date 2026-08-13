@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   check:
@@ -29,4 +30,7 @@ jobs:
 
           echo "Updating $CURRENT -> $LATEST"
           bash scripts/auto-bump.sh "$LATEST"
+          gh workflow run tagAndRelease.yml
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash

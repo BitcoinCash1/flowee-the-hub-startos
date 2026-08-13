@@ -4,6 +4,7 @@ on:
   push:
     branches: ['master']
     paths-ignore: ['*.md', 'Dockerfile.binary']
+  workflow_dispatch:
   workflow_run:
     workflows: ['Build Binary Image']
     types: [completed]
