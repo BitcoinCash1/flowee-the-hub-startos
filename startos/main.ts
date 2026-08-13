@@ -11,9 +11,8 @@ import {
   mainMounts,
   networkDir,
   networkFlag,
-  peerPort,
+  networkPorts,
   rootDir,
-  rpcPort,
 } from './utils'
 
 /**
@@ -78,8 +77,8 @@ export const main = sdk.setupMain(async ({ effects }) => {
   const hubArgs = [
     `-conf=${rootDir}/flowee.conf`,
     `-datadir=${rootDir}`,
-    `-rpcport=${rpcPort}`,
-    `-port=${peerPort}`,
+    `-rpcport=${networkPorts[network].rpc}`,
+    `-port=${networkPorts[network].peer}`,
     `-proxyrandomize=${torIsolation ? 1 : 0}`,
     ...(torProxyAll ? [`-proxy=${torSocks}`] : []),
     ...(netFlag ? [netFlag] : []),
@@ -173,11 +172,13 @@ export const main = sdk.setupMain(async ({ effects }) => {
           // more than 1000 blocks ahead", so it clears well before the last
           // blocks land — and before any block has landed at all on a fresh
           // datadir. Hold "syncing" until the chain has actually caught up.
+          // Do not gate on verificationprogress: at the tip that number
+          // briefly dips below 0.9999 and StartOS then restarts indexer /
+          // synced-true. Trust IBD + header lag, same as BCHN.
           if (
             info.initialblockdownload ||
             info.blocks <= 0 ||
-            info.headers - info.blocks > 2 ||
-            info.verificationprogress < 0.9999
+            info.headers - info.blocks > 2
           ) {
             return {
               message: i18n('Syncing blocks...${percentage}%', { percentage }),

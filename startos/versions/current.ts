@@ -1,10 +1,13 @@
 import { IMPOSSIBLE, VersionInfo } from '@start9labs/start-sdk'
 
 export const current = VersionInfo.of({
-  version: '2026.5.2:12',
+  version: '2026.5.3:0',
   releaseNotes: {
-    en_US: `- Fixes the transaction indexer rebuilding its database from scratch on every restart — it was writing outside the service's data volume.
-- The node authenticates its own commands with a cookie, and RPC credentials for other apps are now stored hashed instead of in plaintext. Every credential you create works; previously only the first one did.
+    en_US: `- Restores BCHN-order RPC/P2P ports per network (chipnet 48332/48333). 2026.5.2:12 pinned every chain to 8332/8333, so Fulcrum, Explorer and mining pools on chipnet could not reach the node.
+- Dependents can again read rpcUser/rpcPassword from store.json. Hashed rpcauth and Generate RPC Credential are unchanged.
+- Blockchain Sync no longer flickers at the tip: a brief dip in verificationprogress no longer restarts the indexer.
+- Fixes the transaction indexer rebuilding its database from scratch on every restart — it was writing outside the service's data volume.
+- The node authenticates its own commands with a cookie. Generate RPC Credential still stores hashed rpcauth; store.json also keeps plaintext rpcUser/rpcPassword so dependents that read the volume can autoconfig.
 - Tor is now an outbound proxy only, and off by default. The Hub predates v3 onion addresses, so onion inbound and onion-only peering are gone rather than left as settings that could never work.
 - Backups no longer copy the block files, the UTXO database or the transaction index; a restore rebuilds them.
 - Adds Spanish, German, Polish and French translations.

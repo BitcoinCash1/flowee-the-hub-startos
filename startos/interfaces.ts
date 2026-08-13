@@ -1,5 +1,6 @@
 import { i18n } from './i18n'
 import { sdk } from './sdk'
+import { storeJson } from './fileModels/store.json'
 import {
   apiHostId,
   apiInterfaceId,
@@ -7,15 +8,17 @@ import {
   indexerHostId,
   indexerInterfaceId,
   indexerPort,
+  networkPorts,
   peerHostId,
   peerInterfaceId,
-  peerPort,
   rpcHostId,
   rpcInterfaceId,
-  rpcPort,
 } from './utils'
 
 export const setInterfaces = sdk.setupInterfaces(async ({ effects }) => {
+  const network = (await storeJson.read().once())?.network ?? 'mainnet'
+  const { rpc: rpcPort, peer: peerPort } = networkPorts[network]
+
   // RPC
   const rpcMulti = sdk.MultiHost.of(effects, rpcHostId)
   const rpcOrigin = await rpcMulti.bindPort(rpcPort, {

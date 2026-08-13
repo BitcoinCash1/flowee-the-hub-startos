@@ -45,8 +45,8 @@ Other StartOS services that depend on Flowee set their own credentials up automa
 
 **Network** switches between mainnet and the test networks. Flowee restarts and syncs the new
 network from the beginning; the data for the network you left is kept, so switching back resumes
-where it stopped. The ports stay the same across networks, so anything already connected to Flowee
-keeps working — it will just be looking at a different chain.
+where it stopped. RPC and P2P ports follow Bitcoin Cash Node (chipnet is 48332/48333), so
+dependent services must use the port for the chain the node is on.
 
 **Delete Test Network Data** reclaims the disk a test network is using. It will not delete the
 network you are currently on.

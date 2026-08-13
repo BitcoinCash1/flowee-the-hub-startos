@@ -9,13 +9,11 @@ export const shape = z.object({
   torProxyAll: z.boolean().catch(false),
   torIsolation: z.boolean().catch(true),
   advertiseClearnetInbound: z.boolean().catch(false),
-  // Written by versions before 2026.5.2:12, two of them holding an RPC
-  // password in plaintext. A file model preserves keys it was never told
-  // about, so they are declared here to be removed: whatever is on disk parses
-  // to undefined and the next write omits it.
-  rpcCredentials: z.undefined().optional().catch(undefined),
-  rpcUser: z.undefined().optional().catch(undefined),
-  rpcPassword: z.undefined().optional().catch(undefined),
+  // Dependents that predate createDependentCredential still read these.
+  // :12 stripped them, which broke Fulcrum / Explorer / pools that expected
+  // plaintext creds in store.json. Hashed rpcauth for hub-cli is unchanged.
+  rpcUser: z.string().optional(),
+  rpcPassword: z.string().optional(),
   initialized: z.undefined().optional().catch(undefined),
   torEnabled: z.undefined().optional().catch(undefined),
 })

@@ -15,14 +15,6 @@ export const peerInterfaceId = 'peer'
 export const apiInterfaceId = 'api'
 export const indexerInterfaceId = 'indexer'
 
-/**
- * The Hub defaults to a different port pair per network, but only one network
- * runs in this container at a time, so the package pins the mainnet pair for
- * every network. Nothing has to be repointed after a network switch, and the
- * bindings never churn.
- */
-export const rpcPort = 8332
-export const peerPort = 8333
 /** Flowee's own binary protocol. The bundled indexer dials it to follow the chain. */
 export const apiPort = 1235
 /** The indexer's listener for Flowee-protocol clients (wallets, REST proxies). */
@@ -37,6 +29,24 @@ export const NETWORKS = [
   'regtest',
 ] as const
 export type Network = (typeof NETWORKS)[number]
+
+/**
+ * Same BCHN-order RPC/P2P ports per network. 2026.5.2:12 pinned every chain
+ * to 8332/8333, which broke Fulcrum / Explorer / pools on chipnet (they dial
+ * 48332). Dependents import `networkPorts` and pick the chain they see.
+ * `rpcPort` / `peerPort` stay the mainnet pair for callers that have not
+ * switched yet.
+ */
+export const networkPorts: Record<Network, { rpc: number; peer: number }> = {
+  mainnet: { rpc: 8332, peer: 8333 },
+  testnet: { rpc: 18332, peer: 18333 },
+  testnet4: { rpc: 28332, peer: 28333 },
+  scalenet: { rpc: 38332, peer: 38333 },
+  chipnet: { rpc: 48332, peer: 48333 },
+  regtest: { rpc: 18443, peer: 18444 },
+}
+export const rpcPort = networkPorts.mainnet.rpc
+export const peerPort = networkPorts.mainnet.peer
 
 export const networkFlag: Record<Network, string | null> = {
   mainnet: null,
@@ -82,7 +92,7 @@ export const hubCliArgs = (network: Network): string[] => [
   `-datadir=${rootDir}`,
   ...(networkFlag[network] ? [networkFlag[network]!] : []),
   '-rpcconnect=127.0.0.1',
-  `-rpcport=${rpcPort}`,
+  `-rpcport=${networkPorts[network].rpc}`,
 ]
 
 export type GetBlockchainInfo = {

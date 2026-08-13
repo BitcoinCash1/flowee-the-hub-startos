@@ -99,14 +99,14 @@ data directory can hold several networks.
 
 | Interface           | Container port | Protocol        | Purpose                                                        |
 | ------------------- | -------------- | --------------- | -------------------------------------------------------------- |
-| RPC                 | 8332           | HTTP (JSON-RPC) | Wallets, explorers and dependent services                      |
-| Peer                | 8333           | TCP             | Bitcoin Cash peer-to-peer                                      |
+| RPC                 | per network    | HTTP (JSON-RPC) | Wallets, explorers and dependent services (chipnet 48332)      |
+| Peer                | per network    | TCP             | Bitcoin Cash peer-to-peer (chipnet 48333)                      |
 | Flowee API          | 1235           | TCP (binary)    | Flowee's own protocol; the indexer follows the chain through it |
 | Transaction Indexer | 1234           | TCP (binary)    | Transaction and address lookups against the built index         |
 
-The Hub defaults to a different port pair per network, but only one network runs in this container
-at a time, so the package pins the mainnet pair for all of them. A network switch therefore does
-not move any port: nothing connected to Flowee has to be repointed, and the bindings never churn.
+RPC and P2P follow the same per-network ports as Bitcoin Cash Node (mainnet 8332/8333, chipnet
+48332/48333, …). Dependents read `networkPorts` from this package and the node store's
+`network` field. Switching network rebinds those two ports.
 
 ## Actions (StartOS UI)
 
@@ -233,7 +233,7 @@ ports:
   api: 1235
   indexer: 1234
 networks: [mainnet, testnet, testnet4, scalenet, chipnet, regtest]
-ports_vary_by_network: false
+ports_vary_by_network: true
 dependencies:
   - tor
 startos_managed_files:
