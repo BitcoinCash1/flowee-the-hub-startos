@@ -1,9 +1,10 @@
 import { IMPOSSIBLE, VersionInfo } from '@start9labs/start-sdk'
 
 export const current = VersionInfo.of({
-  version: '2026.5.3:0',
+  version: '2026.5.2:13',
   releaseNotes: {
-    en_US: `- Restores BCHN-order RPC/P2P ports per network (chipnet 48332/48333). 2026.5.2:12 pinned every chain to 8332/8333, so Fulcrum, Explorer and mining pools on chipnet could not reach the node.
+    en_US: `- Still upstream Flowee the Hub 2026.05.2 (Codeberg has no 2026.05.3). This is packaging revision :13 after 2026.5.2:12.
+- Restores BCHN-order RPC/P2P ports per network (chipnet 48332/48333). 2026.5.2:12 pinned every chain to 8332/8333, so Fulcrum, Explorer and mining pools on chipnet could not reach the node.
 - Dependents can again read rpcUser/rpcPassword from store.json. Hashed rpcauth and Generate RPC Credential are unchanged.
 - Blockchain Sync no longer flickers at the tip: a brief dip in verificationprogress no longer restarts the indexer.
 - Fixes the transaction indexer rebuilding its database from scratch on every restart — it was writing outside the service's data volume.
