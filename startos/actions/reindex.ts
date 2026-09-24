@@ -1,18 +1,23 @@
-import { sdk } from '../sdk'
 import { storeJson } from '../fileModels/store.json'
+import { i18n } from '../i18n'
+import { sdk } from '../sdk'
 
 export const reindex = sdk.Action.withoutInput(
   'reindex',
-  async ({ effects: _effects }) => ({
-    name: 'Reindex Blockchain',
-    description:
-      'Delete the chainstate and re-verify every block from genesis. This is necessary if the database is corrupted. The node will restart automatically.',
-    warning:
-      'This process re-verifies the entire blockchain from scratch and can take many hours or days. Do not interrupt once started.',
-    allowedStatuses: 'any' as const,
-    group: 'Maintenance',
-    visibility: 'enabled' as const,
+
+  async () => ({
+    name: i18n('Reindex Blockchain'),
+    description: i18n(
+      'Rebuild the UTXO database by re-verifying every block already on disk. Use this if the node reports a corrupt database.',
+    ),
+    warning: i18n(
+      'This re-verifies the whole chain and can take many hours. Flowee restarts immediately.',
+    ),
+    allowedStatuses: 'any',
+    group: i18n('Maintenance'),
+    visibility: 'enabled',
   }),
+
   async ({ effects }) => {
     await storeJson.merge(effects, { reindex: true, fullySynced: false })
     await effects.restart()

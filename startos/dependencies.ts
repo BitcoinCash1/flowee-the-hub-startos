@@ -1,19 +1,18 @@
-import { sdk } from './sdk'
 import { storeJson } from './fileModels/store.json'
+import { sdk } from './sdk'
 
 export const setDependencies = sdk.setupDependencies(async ({ effects }) => {
-  const store = await storeJson.read().const(effects)
-  const torEnabled = store?.torEnabled ?? true
+  const torProxyAll = await storeJson.read((s) => s.torProxyAll).const(effects)
 
-  if (torEnabled) {
-    return {
-      tor: {
-        kind: 'running' as const,
-        versionRange: '>=0.4.9.5:0',
-        healthChecks: [] as string[],
-      },
-    }
-  }
-
-  return {}
+  // Tor matters only as the SOCKS proxy peer traffic is sent through. The hub
+  // predates v3 onion addresses, so it is never needed for onion reachability.
+  return torProxyAll
+    ? {
+        tor: {
+          kind: 'running' as const,
+          versionRange: '>=0.4.9.11:4',
+          healthChecks: [],
+        },
+      }
+    : {}
 })

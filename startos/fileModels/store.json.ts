@@ -1,30 +1,24 @@
 import { FileHelper, z } from '@start9labs/start-sdk'
 import { sdk } from '../sdk'
+import { NETWORKS } from '../utils'
 
-export const shape = z
-  .object({
-    rpcCredentials: z
-      .array(
-        z.object({
-          name: z.string().min(1),
-          username: z.string().min(1),
-          password: z.string(),
-        }),
-      )
-      .catch([]),
-    rpcUser: z.string().catch('flowee'),
-    rpcPassword: z.string().catch(''),
-    network: z
-      .enum(['mainnet', 'testnet', 'testnet4', 'scalenet', 'chipnet', 'regtest'])
-      .catch('mainnet'),
-    initialized: z.boolean().catch(false),
-    reindex: z.boolean().catch(false),
-    fullySynced: z.boolean().catch(false),
-    torEnabled: z.boolean().catch(true),
-    torIsolation: z.boolean().catch(true),
-    advertiseClearnetInbound: z.boolean().catch(false),
-  })
-  .strip()
+export const shape = z.object({
+  network: z.enum(NETWORKS).catch('mainnet'),
+  reindex: z.boolean().catch(false),
+  fullySynced: z.boolean().catch(false),
+  torProxyAll: z.boolean().catch(false),
+  torIsolation: z.boolean().catch(true),
+  advertiseClearnetInbound: z.boolean().catch(false),
+  // Written by versions before 2026.5.2:12, two of them holding an RPC
+  // password in plaintext. A file model preserves keys it was never told
+  // about, so they are declared here to be removed: whatever is on disk parses
+  // to undefined and the next write omits it.
+  rpcCredentials: z.undefined().optional().catch(undefined),
+  rpcUser: z.undefined().optional().catch(undefined),
+  rpcPassword: z.undefined().optional().catch(undefined),
+  initialized: z.undefined().optional().catch(undefined),
+  torEnabled: z.undefined().optional().catch(undefined),
+})
 
 export const storeJson = FileHelper.json(
   {

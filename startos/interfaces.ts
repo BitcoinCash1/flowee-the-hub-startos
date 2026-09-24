@@ -1,24 +1,31 @@
+import { i18n } from './i18n'
 import { sdk } from './sdk'
-import { rpcInterfaceId, peerInterfaceId, apiInterfaceId, apiPort, networkPorts, Network } from './utils'
-import { storeJson } from './fileModels/store.json'
+import {
+  apiHostId,
+  apiInterfaceId,
+  apiPort,
+  indexerHostId,
+  indexerInterfaceId,
+  indexerPort,
+  peerHostId,
+  peerInterfaceId,
+  peerPort,
+  rpcHostId,
+  rpcInterfaceId,
+  rpcPort,
+} from './utils'
 
 export const setInterfaces = sdk.setupInterfaces(async ({ effects }) => {
-  const store = await storeJson.read().once()
-  const network: Network = store?.network ?? 'mainnet'
-  const { rpc: rpcPort, peer: peerPort } = networkPorts[network]
-
-  const receipts = []
-
-  // ── RPC ──────────────────────────────────────────────────────────────────
-  const rpcMulti = sdk.MultiHost.of(effects, 'rpc')
+  // RPC
+  const rpcMulti = sdk.MultiHost.of(effects, rpcHostId)
   const rpcOrigin = await rpcMulti.bindPort(rpcPort, {
     protocol: 'http',
     preferredExternalPort: rpcPort,
   })
   const rpc = sdk.createInterface(effects, {
-    name: 'RPC Interface',
+    name: i18n('RPC'),
     id: rpcInterfaceId,
-    description: 'Listens for JSON-RPC commands',
+    description: i18n('Listens for JSON-RPC commands'),
     type: 'api',
     masked: false,
     schemeOverride: null,
@@ -26,10 +33,9 @@ export const setInterfaces = sdk.setupInterfaces(async ({ effects }) => {
     path: '',
     query: {},
   })
-  receipts.push(await rpcOrigin.export([rpc]))
 
-  // ── P2P ──────────────────────────────────────────────────────────────────
-  const peerMulti = sdk.MultiHost.of(effects, 'peer')
+  // Peer
+  const peerMulti = sdk.MultiHost.of(effects, peerHostId)
   const peerOrigin = await peerMulti.bindPort(peerPort, {
     protocol: null,
     preferredExternalPort: peerPort,
@@ -37,9 +43,11 @@ export const setInterfaces = sdk.setupInterfaces(async ({ effects }) => {
     secure: { ssl: false },
   })
   const peer = sdk.createInterface(effects, {
-    name: 'Peer Interface',
+    name: i18n('Peer'),
     id: peerInterfaceId,
-    description: 'Listens for incoming connections from peers on the bitcoin cash network',
+    description: i18n(
+      'Listens for incoming connections from peers on the Bitcoin Cash network',
+    ),
     type: 'p2p',
     masked: false,
     schemeOverride: { ssl: null, noSsl: null },
@@ -47,26 +55,53 @@ export const setInterfaces = sdk.setupInterfaces(async ({ effects }) => {
     path: '',
     query: {},
   })
-  receipts.push(await peerOrigin.export([peer]))
 
-  // ── API ──────────────────────────────────────────────────────────────────
-  const apiMulti = sdk.MultiHost.of(effects, 'api')
+  // Flowee API — a binary protocol, not HTTP, so no scheme and no SSL wrapping.
+  const apiMulti = sdk.MultiHost.of(effects, apiHostId)
   const apiOrigin = await apiMulti.bindPort(apiPort, {
-    protocol: 'http',
+    protocol: null,
     preferredExternalPort: apiPort,
+    addSsl: null,
+    secure: { ssl: false },
   })
   const api = sdk.createInterface(effects, {
-    name: 'Flowee API',
+    name: i18n('Flowee API'),
     id: apiInterfaceId,
-    description: 'Flowee native API for direct communication with the Hub',
+    description: i18n("Flowee's own binary protocol for talking to the node"),
     type: 'api',
     masked: false,
-    schemeOverride: null,
+    schemeOverride: { ssl: null, noSsl: null },
     username: null,
     path: '',
     query: {},
   })
-  receipts.push(await apiOrigin.export([api]))
 
-  return receipts
+  // Indexer — likewise Flowee's binary protocol.
+  const indexerMulti = sdk.MultiHost.of(effects, indexerHostId)
+  const indexerOrigin = await indexerMulti.bindPort(indexerPort, {
+    protocol: null,
+    preferredExternalPort: indexerPort,
+    addSsl: null,
+    secure: { ssl: false },
+  })
+  const indexer = sdk.createInterface(effects, {
+    name: i18n('Transaction Indexer'),
+    id: indexerInterfaceId,
+    description: i18n(
+      'Answers transaction lookups from the index built alongside the node',
+    ),
+    type: 'api',
+    masked: false,
+    schemeOverride: { ssl: null, noSsl: null },
+    username: null,
+    path: '',
+    query: {},
+  })
+
+  return [
+    await rpcOrigin.export([rpc]),
+    await peerOrigin.export([peer]),
+    await apiOrigin.export([api]),
+    await indexerOrigin.export([indexer]),
+  ]
 })

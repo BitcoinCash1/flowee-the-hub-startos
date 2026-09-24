@@ -1,15 +1,16 @@
-import { sdk } from '../../sdk'
 import { floweeConfFile, fullConfigSpec } from '../../fileModels/flowee.conf'
+import { i18n } from '../../i18n'
+import { sdk } from '../../sdk'
 
 export const nodeSettings = sdk.Action.withInput(
   'node-settings',
 
-  async ({ effects }) => ({
-    name: 'Node Settings',
-    description: 'Core node behavior and relay policy settings supported by Flowee.',
+  async () => ({
+    name: i18n('Node Settings'),
+    description: i18n('Edit block policy and the optional REST API'),
     warning: null,
     allowedStatuses: 'any',
-    group: 'Configuration',
+    group: i18n('Configuration'),
     visibility: 'enabled',
   }),
 
@@ -18,10 +19,7 @@ export const nodeSettings = sdk.Action.withInput(
     blocksizeacceptlimit: true,
   }),
 
-  async ({ effects }) => floweeConfFile.read().once(),
+  async () => floweeConfFile.read().once(),
 
-  async ({ effects, input }) => {
-    await floweeConfFile.merge(effects, input)
-    return null
-  },
+  async ({ effects, input }) => floweeConfFile.merge(effects, input),
 )

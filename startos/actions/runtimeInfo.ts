@@ -1,23 +1,31 @@
-import { sdk } from '../sdk'
 import { storeJson } from '../fileModels/store.json'
-import { rpcPort, GetBlockchainInfo, GetNetworkInfo } from '../utils'
-import { mainMounts } from '../mounts'
+import { i18n } from '../i18n'
+import { sdk } from '../sdk'
+import {
+  GetBlockchainInfo,
+  GetNetworkInfo,
+  hubCliArgs,
+  mainMounts,
+} from '../utils'
 
 export const runtimeInfo = sdk.Action.withoutInput(
   'runtime-info',
-  async ({ effects: _effects }) => ({
-    name: 'Node Info',
-    description: 'Display current node runtime information: version, chain status, connections, sync progress.',
+
+  async () => ({
+    name: i18n('Node Info'),
+    description: i18n(
+      'Show the running node: version, chain, peer count and sync progress',
+    ),
     warning: null,
-    allowedStatuses: 'only-running' as const,
+    allowedStatuses: 'only-running',
     group: null,
-    visibility: 'enabled' as const,
+    visibility: 'enabled',
   }),
+
   async ({ effects }) => {
-    const store = await storeJson.read().once()
-    const activeCred = store?.rpcCredentials?.[0]
-    const rpcUser = store?.rpcUser ?? activeCred?.username ?? 'flowee'
-    const rpcPassword = store?.rpcPassword ?? activeCred?.password ?? ''
+    const cli = hubCliArgs(
+      (await storeJson.read((s) => s.network).once()) ?? 'mainnet',
+    )
 
     return sdk.SubContainer.withTemp(
       effects,
@@ -25,52 +33,43 @@ export const runtimeInfo = sdk.Action.withoutInput(
       mainMounts,
       'runtime-info',
       async (sub) => {
-        const cliBase = [
-          'hub-cli',
-          `-rpcconnect=127.0.0.1`,
-          `-rpcport=${rpcPort}`,
-          `-rpcuser=${rpcUser}`,
-          `-rpcpassword=${rpcPassword}`,
-        ]
+        const call = async <T>(method: string): Promise<T | null> => {
+          const res = await sub.exec([...cli, method])
+          if (res.exitCode !== 0) return null
+          try {
+            return JSON.parse(res.stdout.toString())
+          } catch {
+            return null
+          }
+        }
 
-        const [netRes, chainRes] = await Promise.all([
-          sub.exec([...cliBase, 'getnetworkinfo']).catch(() => null),
-          sub.exec([...cliBase, 'getblockchaininfo']).catch(() => null),
+        const [net, chain] = await Promise.all([
+          call<GetNetworkInfo>('getnetworkinfo'),
+          call<GetBlockchainInfo>('getblockchaininfo'),
         ])
-
-        const net: GetNetworkInfo | null = netRes?.exitCode === 0
-          ? JSON.parse(netRes.stdout.toString())
-          : null
-        const chain: GetBlockchainInfo | null = chainRes?.exitCode === 0
-          ? JSON.parse(chainRes.stdout.toString())
-          : null
 
         const lines: string[] = []
         if (net) {
-          lines.push(`Version: ${net.subversion}`)
-          lines.push(`Network Active: ${net.networkactive ? 'Yes' : 'No'}`)
-          lines.push(`Connections: ${net.connections}`)
+          lines.push(`${i18n('Version')}: ${net.subversion}`)
+          lines.push(`${i18n('Peers')}: ${net.connections}`)
         }
         if (chain) {
-          const headerLag = Math.max(0, chain.headers - chain.blocks)
-          const looksSynced = !chain.initialblockdownload
-            && chain.blocks > 0
-            && chain.headers > 0
-            && headerLag <= 2
-            && chain.verificationprogress >= 0.9999
-
-          lines.push(`Chain: ${chain.chain}`)
-          lines.push(`Blocks: ${chain.blocks} / ${chain.headers}`)
-          lines.push(`Sync: ${looksSynced ? 'Complete' : `${(chain.verificationprogress * 100).toFixed(2)}%`}`)
+          lines.push(`${i18n('Chain')}: ${chain.chain}`)
+          lines.push(`${i18n('Blocks')}: ${chain.blocks} / ${chain.headers}`)
+          lines.push(
+            `${i18n('Sync')}: ${(chain.verificationprogress * 100).toFixed(2)}%`,
+          )
         }
 
         return {
-          version: '1' as const,
-          title: 'Node Runtime Info',
+          version: '1',
+          title: i18n('Node Info'),
           message: null,
           result: {
-            type: 'single' as const,
-            value: lines.length ? lines.join('\n') : 'Node is not yet responding to RPC calls.',
+            type: 'single',
+            value: lines.length
+              ? lines.join('\n')
+              : i18n('The node is not answering RPC calls yet.'),
             copyable: false,
             qr: false,
             masked: false,

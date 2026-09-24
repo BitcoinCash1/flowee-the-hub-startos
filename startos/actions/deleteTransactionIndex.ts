@@ -1,33 +1,42 @@
+import { i18n } from '../i18n'
 import { sdk } from '../sdk'
-import { mainMounts } from '../mounts'
-import { rootDir } from '../utils'
+import { mainMounts, rootDir } from '../utils'
 
 export const deleteTransactionIndex = sdk.Action.withoutInput(
   'delete-transaction-index',
-  async ({ effects: _effects }) => ({
-    name: 'Delete Transaction Index',
-    description:
-      'Delete the transaction index database. It will be rebuilt automatically when the service starts.',
-    warning:
-      'Address lookups and transaction queries will be unavailable until the index is fully rebuilt. This can take several hours.',
-    allowedStatuses: 'only-stopped' as const,
-    group: 'Maintenance',
-    visibility: 'enabled' as const,
+
+  async () => ({
+    name: i18n('Delete Transaction Index'),
+    description: i18n(
+      'Discard the transaction index. Flowee rebuilds it from the block files the next time it starts.',
+    ),
+    warning: i18n(
+      'Transaction lookups stay unavailable until the rebuild finishes, which can take several hours.',
+    ),
+    allowedStatuses: 'only-stopped',
+    group: i18n('Maintenance'),
+    visibility: 'enabled',
   }),
+
   async ({ effects }) => {
     await sdk.SubContainer.withTemp(
       effects,
       { imageId: 'flowee' },
       mainMounts,
-      'delete-tx-index',
-      async (sub) => {
-        await sub.exec(['rm', '-rf', `${rootDir}/indexer`])
-      },
+      'delete-transaction-index',
+      // Every network keeps its own index beside its chain data.
+      (sub) =>
+        sub.exec([
+          'sh',
+          '-c',
+          `rm -rf ${rootDir}/txindex ${rootDir}/*/txindex`,
+        ]),
     )
+
     return {
-      version: '1' as const,
-      title: 'Transaction Index Deleted',
-      message: 'The transaction index has been removed. It will be rebuilt automatically on the next startup.',
+      version: '1',
+      title: i18n('Transaction Index Deleted'),
+      message: i18n('Flowee will rebuild the index when it next starts.'),
       result: null,
     }
   },

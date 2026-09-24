@@ -1,12 +1,16 @@
 {
-  "name": "flowee",
+  "name": "flowee-the-hub-startos",
   "scripts": {
     "build": "rm -rf ./javascript && ncc build startos/index.ts -o ./javascript",
     "prettier": "prettier --write startos",
     "check": "tsc --noEmit"
   },
   "dependencies": {
-    "@start9labs/start-sdk": "2.0.9"
+    "@start9labs/start-sdk": "2.0.9",
+    "tor-startos": "github:Start9Labs/tor-startos#next"
+  },
+  "overrides": {
+    "@start9labs/start-sdk": "$@start9labs/start-sdk"
   },
   "devDependencies": {
     "@types/node": "^22.19.0",
@@ -19,8 +23,5 @@
     "tabWidth": 2,
     "semi": false,
     "singleQuote": true
-  },
-  "overrides": {
-    "@start9labs/start-sdk": "$@start9labs/start-sdk"
   }
 }
