@@ -238,7 +238,7 @@ What the backup keeps is what the network cannot give back: the configuration an
 
 ## Upstream Updates
 
-`check-upstream.yml` looks for a new Flowee the Hub tag on Codeberg daily. When one appears, `scripts/auto-bump.sh` resolves it to its immutable commit, sets `VERSION` and `COMMIT` in the manifest's `buildArgs`, sets `startos/versions/current.ts` to `<upstream>:0` (the month's leading zero dropped, so `2026.08.0` becomes `2026.8.0`), resets `ALLOW_DOWNGRADE` to `false`, and opens a pull request from `auto-bump/<tag>`. Nothing reaches `master` until that PR is reviewed and merged; merging it is what releases the new version. Package-only fixes bump the revision after the colon by hand in their own PR.
+`check-upstream.yml` looks for a new Flowee the Hub tag on Codeberg daily. When one appears, `scripts/auto-bump.sh` resolves it to its immutable commit, sets `VERSION` and `COMMIT` in the manifest's `buildArgs`, sets `startos/versions/current.ts` to `<upstream>:0` (the month's leading zero dropped, so `2026.08.0` becomes `2026.8.0`), resets `ALLOW_DOWNGRADE` to `false`, commits the bump straight to `master`, and the workflow dispatches Tag and Release, which builds and publishes the new version. Package-only fixes bump the revision after the colon by hand.
 
 ## Quick Reference for AI Consumers
 
